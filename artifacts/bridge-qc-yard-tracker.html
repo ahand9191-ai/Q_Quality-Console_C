@@ -1,0 +1,357 @@
+<!doctype html><html dir="auto"><head><meta http-equiv="Content-Security-Policy" content="default-src 'unsafe-inline' 'unsafe-eval' https: data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<script id="__base44_dark_class__">document.documentElement.classList.remove('dark');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Text:wght@400;500;600;700&display=swap">
+<style id="__base44_editor_theme__">
+:root {
+  --background: 38 27% 94%;
+  --foreground: 0 0% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 4%;
+  --primary: 21 42% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 39 17% 93%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 98%;
+  --input: 0 0% 98%;
+  --ring: 21 42% 55%;
+  --radius: 0.5rem;
+  color-scheme: light;
+}
+.dark {
+  --background: 220 5% 11%;
+  --foreground: 0 0% 99%;
+  --card: 0 1% 14%;
+  --card-foreground: 0 0% 99%;
+  --popover: 0 1% 14%;
+  --popover-foreground: 0 0% 99%;
+  --primary: 21 42% 55%;
+  --primary-foreground: 0 0% 99%;
+  --secondary: 0 0% 18%;
+  --secondary-foreground: 0 0% 99%;
+  --muted: 0 0% 18%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 0 0% 18%;
+  --accent-foreground: 0 0% 99%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 99%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 21 42% 55%;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+/* shadcn's base layer: default every element's border-color to the theme
+   token. Without this, Tailwind's bare `border` utility only sets width and
+   the color falls back to currentColor (near-black text) — so the model's
+   `border` cards render heavy/dark and the `--border` value is ignored.
+   Explicit `border-{color}` utilities and inline styles still override. */
+*, *::before, *::after { border-color: hsl(var(--border)); }
+html, body {
+  margin: 0 !important;
+  padding: 0;
+  overflow: auto !important;
+  /* Inline card: transparent, so the real chat surface (a gradient, not the
+     single flat `--background` stop) shows straight through and the artifact
+     reads as inline chat content in both themes. Standalone saved file: opaque
+     `--background` so it stays readable on its own page. `--card` stays
+     elevated for emphasis blocks (stat tiles, panels) so hierarchy reads. */
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground));
+  font-family: 'WixMadeforText', 'Wix Madefor Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* 8px (vs 16px) — minimal breathing room from the iframe edge so tightly-composed
+   dashboards don't ship a fat empty halo before their first element. */
+body { padding: 8px; }
+
+code, kbd, pre, samp { font-family: 'WixMadeforMonospace', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+a { color: hsl(var(--primary)); }
+hr { border: 0; border-top: 1px solid hsl(var(--border)); }
+h1, h2, h3, h4, h5, h6 { font-weight: 600; color: hsl(var(--foreground)); }
+</style>
+<script id="__base44_tw_config__">
+window.tailwind = window.tailwind || {};
+window.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+      },
+      // A bare `border` / `divide-*` (no color) falls back to Tailwind
+      // preflight's DEFAULT, which is a FIXED gray-200 (#e5e7eb) — subtle on the
+      // light card but near-white glare on the dark card. The `colors.border`
+      // map above only creates the `border-border` class; it does NOT set the
+      // uncolored default. Point the DEFAULT at the theme token so an uncolored
+      // border adapts to dark mode like the rest of the palette. (Explicit
+      // `border-primary` etc. still override.)
+      borderColor: { DEFAULT: 'hsl(var(--border))' },
+      divideColor: { DEFAULT: 'hsl(var(--border))' },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      fontFamily: {
+        // Same two-name stack as `FONT_SANS_STACK` above. The
+        // sandboxed null-origin iframe lands on `Wix Madefor Text`
+        // (Google Fonts' name); `WixMadeforText` is here only for
+        // defense-in-depth in case the iframe ever runs same-origin.
+        sans: ['WixMadeforText', 'Wix Madefor Text', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        mono: ['WixMadeforMonospace', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+    },
+  },
+};
+</script>
+<script src="https://cdn.tailwindcss.com" id="__base44_tw_cdn__"></script></head><body><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Contech Bridge QC Yard Tracker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #1a1a2e; }
+  #app { display: flex; width: 100%; height: 100%; }
+  #sidebar { width: 300px; min-width: 300px; background: #16213e; color: #e0e0e0; display: flex; flex-direction: column; overflow-y: auto; border-right: 2px solid #0f3460; }
+  #sidebar-header { padding: 14px; background: linear-gradient(135deg, #0f3460, #1a1a2e); border-bottom: 2px solid #0a2647; }
+  #sidebar-header h1 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  #sidebar-header .subtitle { font-size: 11px; color: #7a8fa6; }
+  .sidebar-section { padding: 12px 14px; border-bottom: 1px solid #1a2744; }
+  .sidebar-section h3 { font-size: 12px; font-weight: 600; color: #4a9fd4; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .toolbox { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tool-btn { padding: 7px 10px; background: #1a2744; border: 1px solid #2a3f5f; border-radius: 6px; color: #c0c8d4; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+  .tool-btn:hover { background: #0f3460; border-color: #4a9fd4; color: #fff; }
+  .bridge-types { display: flex; flex-direction: column; gap: 5px; }
+  .bridge-type-btn { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #1a2744; border: 1px solid #2a3f5f; border-radius: 6px; color: #c0c8d4; font-size: 11px; cursor: pointer; transition: all 0.15s; text-align: left; }
+  .bridge-type-btn:hover { background: #0f3460; border-color: #4a9fd4; transform: translateX(2px); }
+  .bridge-type-btn .bridge-icon-mini { width: 32px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  #info-panel { padding: 12px 14px; border-bottom: 1px solid #1a2744; display: none; }
+  #info-panel.visible { display: block; }
+  .info-edit-row { margin-bottom: 7px; }
+  .info-edit-row label { display: block; font-size: 10px; color: #7a8fa6; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .info-edit-row input, .info-edit-row select, .info-edit-row textarea { width: 100%; background: #0f1c2e; border: 1px solid #2a3f5f; border-radius: 4px; color: #e0e0e0; padding: 4px 7px; font-size: 11px; font-family: inherit; }
+  .info-edit-row input:focus, .info-edit-row select:focus, .info-edit-row textarea:focus { outline: none; border-color: #4a9fd4; }
+  .info-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .info-actions button { padding: 5px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; border: 1px solid; }
+  .btn-save { background: #0f3460; color: #4a9fd4; border-color: #4a9fd4; }
+  .btn-save:hover { background: #16447a; color: #fff; }
+  .btn-delete { background: #2a1520; color: #e74c3c; border-color: #e74c3c; }
+  .btn-delete:hover { background: #e74c3c; color: #fff; }
+  .btn-close { background: #1a2744; color: #7a8fa6; border-color: #2a3f5f; }
+  .btn-close:hover { background: #2a3f5f; color: #fff; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-card { padding: 8px; background: #1a2744; border-radius: 6px; text-align: center; }
+  .stat-card .stat-num { font-size: 20px; font-weight: 700; color: #4a9fd4; }
+  .stat-card .stat-label { font-size: 9px; color: #7a8fa6; text-transform: uppercase; margin-top: 1px; }
+  #canvas-container { flex: 1; position: relative; overflow: hidden; background: #2a2a3a; cursor: grab; }
+  #canvas-container.panning { cursor: grabbing; }
+  #yard-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+  .road { position: absolute; background: #3a3a3a; }
+  .road-hwy85 { left: 0; top: 0; width: 40px; height: 100%; background: linear-gradient(to right, #2a2a2a, #3a3a3a, #2a2a2a); border-right: 2px solid #555; }
+  .road-hwy85::after { content: 'US-85'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg); white-space: nowrap; color: #d4a843; font-size: 13px; font-weight: 700; letter-spacing: 3px; text-shadow: 1px 1px 2px #000; }
+  .road-hwy85::before { content: ''; position: absolute; top: 0; left: 50%; width: 2px; height: 100%; background: repeating-linear-gradient(to bottom, #d4a843 0, #d4a843 20px, transparent 20px, transparent 40px); transform: translateX(-50%); z-index: 1; }
+  .road-66 { left: 40px; top: 0; width: calc(100% - 40px); height: 36px; background: linear-gradient(to bottom, #2a2a2a, #3a3a3a, #2a2a2a); border-bottom: 2px solid #555; }
+  .road-66::after { content: 'CR-66'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #d4a843; font-size: 13px; font-weight: 700; letter-spacing: 3px; text-shadow: 1px 1px 2px #000; }
+  .road-66::before { content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: repeating-linear-gradient(to right, #d4a843 0, #d4a843 20px, transparent 20px, transparent 40px); transform: translateY(-50%); }
+  .railroad { position: absolute; left: 44px; top: 36px; width: 8px; height: calc(100% - 72px); background: #4a4030; }
+  .railroad::before { content: ''; position: absolute; top: 0; left: 2px; width: 2px; height: 100%; background: #8a7a5a; box-shadow: 4px 0 0 #8a7a5a; }
+  .railroad::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(to bottom, transparent 0, transparent 15px, #3a3020 15px, #3a3020 20px); }
+  .yard-area { position: absolute; left: 56px; top: 40px; width: calc(100% - 100px); height: calc(100% - 80px); background: repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(100,110,130,0.06) 79px, rgba(100,110,130,0.06) 80px), repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(100,110,130,0.06) 79px, rgba(100,110,130,0.06) 80px), linear-gradient(135deg, #8b7d6b 0%, #9a8b75 30%, #8b7d6b 70%, #7a6d5a 100%); }
+  .corn-field { position: absolute; right: 0; top: 40px; width: 44px; height: calc(100% - 80px); background: repeating-linear-gradient(45deg, #6b8f3a 0px, #6b8f3a 4px, #5a7a30 4px, #5a7a30 8px), #5a7a30; border-left: 2px solid #4a6a20; opacity: 0.85; }
+  .bay-label { position: absolute; font-size: 9px; color: rgba(200,200,200,0.4); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; pointer-events: none; white-space: nowrap; }
+  .steel-lane { position: absolute; background: repeating-linear-gradient(90deg, #555 0px, #555 2px, #444 2px, #444 12px); border-radius: 2px; opacity: 0.7; }
+  .shop-building { position: absolute; bottom: 44px; right: 52px; width: 180px; height: 120px; background: linear-gradient(135deg, #4a5060, #3a3f4a); border: 2px solid #5a6070; border-radius: 4px; box-shadow: inset 0 0 20px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.4); }
+  .shop-building::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; background: linear-gradient(135deg, #1a5c8a, #0d4a7a); border-radius: 4px 4px 0 0; }
+  .shop-logo { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; color: #fff; letter-spacing: 1px; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); z-index: 2; line-height: 14px; text-align: center; padding-top: 4px; }
+  .shop-logo .sub { font-size: 7px; font-weight: 500; opacity: 0.85; letter-spacing: 0.5px; }
+  .bridge-asset { position: absolute; cursor: move; user-select: none; transition: filter 0.15s; z-index: 10; }
+  .bridge-asset:hover { filter: brightness(1.2) drop-shadow(0 0 4px rgba(74,159,212,0.6)); }
+  .bridge-asset.selected { filter: brightness(1.3) drop-shadow(0 0 8px rgba(74,159,212,0.8)); }
+  .bridge-asset.dragging { z-index: 100; filter: brightness(1.4); }
+  .bridge-visual { position: relative; border-radius: 3px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); overflow: hidden; width: 100%; height: 100%; }
+  .bridge-girder .bridge-visual { background: linear-gradient(135deg, #4a7ab8, #2a5a98); border: 1px solid #5a8ac8; }
+  .bridge-girder .bridge-visual::after { content: ''; position: absolute; top: 30%; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.3); box-shadow: 0 6px 0 rgba(255,255,255,0.15); }
+  .bridge-pedestrian .bridge-visual { background: linear-gradient(135deg, #2aac8a, #1a8a6a); border: 1px solid #3abc9a; }
+  .bridge-pedestrian .bridge-visual::after { content: ''; position: absolute; top: 20%; left: 10%; right: 10%; height: 60%; border: 1px solid rgba(255,255,255,0.3); border-radius: 2px; }
+  .bridge-truss .bridge-visual { background: linear-gradient(135deg, #c85a3a, #a8452a); border: 1px solid #d86a4a; }
+  .bridge-truss .bridge-visual::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.2) 48%, rgba(255,255,255,0.2) 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(255,255,255,0.2) 48%, rgba(255,255,255,0.2) 52%, transparent 52%); background-size: 20px 20px; }
+  .bridge-suspension .bridge-visual { background: linear-gradient(135deg, #8a6abf, #6a4a9f); border: 1px solid #9a7acf; }
+  .bridge-suspension .bridge-visual::after { content: ''; position: absolute; top: -5%; left: 50%; transform: translateX(-50%); width: 60%; height: 110%; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; clip-path: inset(0 0 50% 0); }
+  .bridge-modular .bridge-visual { background: linear-gradient(135deg, #d4a843, #b48823); border: 1px solid #e4b853; }
+  .bridge-modular .bridge-visual::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(90deg, transparent 0, transparent 19px, rgba(0,0,0,0.2) 19px, rgba(0,0,0,0.2) 20px); }
+  .bridge-loose-parts .bridge-visual { background: linear-gradient(135deg, #888, #666); border: 1px solid #999; border-radius: 4px; }
+  .bridge-loose-parts .bridge-visual::after { content: ''; position: absolute; top: 20%; left: 20%; right: 20%; bottom: 20%; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.15) 0, rgba(255,255,255,0.15) 3px, transparent 3px, transparent 6px); }
+  .qc-tag { position: absolute; top: -8px; right: -8px; width: 18px; height: 18px; background: #e74c3c; color: #fff; border-radius: 50%; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.5); z-index: 5; border: 1.5px solid #fff; }
+  .bridge-label { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); font-size: 8px; color: #fff; background: rgba(0,0,0,0.7); padding: 1px 5px; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+  .rotate-handle { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); width: 18px; height: 18px; background: rgba(74,159,212,0.9); border: 1.5px solid #fff; border-radius: 50%; cursor: grab; display: none; align-items: center; justify-content: center; font-size: 10px; color: #fff; z-index: 6; }
+  .bridge-asset.selected .rotate-handle { display: flex; }
+  #controls-overlay { position: absolute; bottom: 14px; right: 14px; z-index: 50; display: flex; flex-direction: column; gap: 6px; }
+  .control-btn { width: 36px; height: 36px; background: rgba(22,33,62,0.9); border: 1px solid #0f3460; border-radius: 8px; color: #4a9fd4; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .control-btn:hover { background: #0f3460; color: #fff; }
+  #status-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(22,33,62,0.85); border: 1px solid #0f3460; border-radius: 20px; padding: 5px 14px; font-size: 10px; color: #7a8fa6; z-index: 50; }
+  #status-bar span { color: #4a9fd4; font-weight: 600; }
+  ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: #16213e; } ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>🌉 Bridge QC Yard Tracker</h1>
+      <div class="subtitle">Contech Engineered Solutions · Greeley, CO</div>
+    </div>
+    <div class="sidebar-section">
+      <h3>📊 Yard Stats</h3>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Bridges</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-qc">0</div><div class="stat-label">QC Hold</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-ready">0</div><div class="stat-label">Ready</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-shipped">0</div><div class="stat-label">Shipped</div></div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <h3>🏗️ Add Bridge</h3>
+      <div class="bridge-types">
+        <button class="bridge-type-btn" onclick="addBridge('girder')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#4a7ab8,#2a5a98)"></span>Girder Bridge</button>
+        <button class="bridge-type-btn" onclick="addBridge('pedestrian')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#2aac8a,#1a8a6a)"></span>Pedestrian Bridge</button>
+        <button class="bridge-type-btn" onclick="addBridge('truss')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#c85a3a,#a8452a)"></span>Truss Bridge</button>
+        <button class="bridge-type-btn" onclick="addBridge('suspension')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#8a6abf,#6a4a9f)"></span>Suspension Bridge</button>
+        <button class="bridge-type-btn" onclick="addBridge('modular')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#d4a843,#b48823)"></span>Modular Section</button>
+        <button class="bridge-type-btn" onclick="addBridge('loose_parts')"><span class="bridge-icon-mini" style="background:linear-gradient(135deg,#888,#666)"></span>Loose Parts / Crate</button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <h3>🔧 Tools</h3>
+      <div class="toolbox">
+        <button class="tool-btn" onclick="rotateSelected()">↻ Rotate</button>
+        <button class="tool-btn" onclick="deleteSelected()">🗑 Delete</button>
+        <button class="tool-btn" onclick="saveData()">💾 Save</button>
+        <button class="tool-btn" onclick="exportData()">⬆ Export</button>
+        <button class="tool-btn" onclick="clearAll()">⚡ Clear All</button>
+      </div>
+    </div>
+    <div class="sidebar-section" id="info-panel">
+      <h3>📋 Bridge Info</h3>
+      <div id="info-content"></div>
+      <div class="info-actions">
+        <button class="btn-save" onclick="saveBridgeInfo()">Save</button>
+        <button class="btn-delete" onclick="deleteSelected()">Delete</button>
+        <button class="btn-close" onclick="closeInfoPanel()">Close</button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <h3>📖 How To</h3>
+      <div style="font-size:10px;color:#7a8fa6;line-height:1.6">
+        • Click a bridge type to add it<br>
+        • <b>Drag</b> bridges to position<br>
+        • <b>Double-click</b> to edit info<br>
+        • <b>Scroll</b> to zoom · <b>Drag canvas</b> to pan<br>
+        • <b>R</b> = rotate · <b>Del</b> = delete · <b>Esc</b> = deselect
+      </div>
+    </div>
+  </div>
+  <div id="canvas-container">
+    <div id="status-bar">Zoom: <span id="zoom-level">100%</span> | Bridges: <span id="bridge-count">0</span> | <span id="last-action">Ready</span></div>
+    <div id="yard-canvas">
+      <div class="road road-hwy85"></div>
+      <div class="road road-66"></div>
+      <div class="railroad"></div>
+      <div class="corn-field"></div>
+      <div class="yard-area" id="yard-area">
+        <div class="bay-label" style="top:10px;left:10px">Bay 1</div>
+        <div class="bay-label" style="top:10px;left:200px">Bay 2</div>
+        <div class="bay-label" style="top:10px;left:400px">Bay 3</div>
+        <div class="bay-label" style="top:10px;left:600px">Bay 4</div>
+        <div class="bay-label" style="top:250px;left:10px">Bay 5</div>
+        <div class="bay-label" style="top:250px;left:200px">Bay 6</div>
+        <div class="bay-label" style="top:250px;left:400px">Bay 7</div>
+        <div class="bay-label" style="top:250px;left:600px">Bay 8</div>
+        <div class="bay-label" style="top:500px;left:10px">Bay 9</div>
+        <div class="bay-label" style="top:500px;left:200px">Bay 10</div>
+        <div class="bay-label" style="top:500px;left:400px">Bay 11</div>
+        <div class="bay-label" style="top:500px;left:600px">Bay 12</div>
+        <div class="bay-label" style="top:750px;left:10px">Bay 13</div>
+        <div class="bay-label" style="top:750px;left:200px">Bay 14</div>
+        <div class="bay-label" style="top:750px;left:400px">Bay 15</div>
+        <div class="bay-label" style="top:750px;left:600px">Bay 16</div>
+        <div class="steel-lane" style="right:0;top:40px;width:30px;height:700px"></div>
+        <div class="steel-lane" style="right:35px;top:40px;width:25px;height:700px;opacity:0.5"></div>
+      </div>
+      <div class="shop-building"><div class="shop-logo">CONTECH<div class="sub">ENGINEERED SOLUTIONS</div></div></div>
+    </div>
+    <div id="controls-overlay">
+      <button class="control-btn" onclick="zoomIn()" title="Zoom In">+</button>
+      <button class="control-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+      <button class="control-btn" onclick="resetView()" title="Reset View">⌂</button>
+    </div>
+  </div>
+</div>
+<script>
+let bridges=[],selectedBridge=null,draggingBridge=null,dragOffset={x:0,y:0},panOffset={x:0,y:0},isPanning=false,panStart={x:0,y:0},zoom=1,nextId=1,rotatingBridge=null,rotateStartAngle=0,rotateStartRotation=0;
+const CANVAS_W=800,CANVAS_H=1200;
+const BRIDGE_TYPES={
+  girder:{label:'Girder Bridge',defaultW:120,defaultH:28,color:'#4a7ab8'},
+  pedestrian:{label:'Pedestrian Bridge',defaultW:100,defaultH:20,color:'#2aac8a'},
+  truss:{label:'Truss Bridge',defaultW:130,defaultH:32,color:'#c85a3a'},
+  suspension:{label:'Suspension Bridge',defaultW:140,defaultH:30,color:'#8a6abf'},
+  modular:{label:'Modular Section',defaultW:60,defaultH:24,color:'#d4a843'},
+  loose_parts:{label:'Loose Parts / Crate',defaultW:40,defaultH:36,color:'#888888'}
+};
+const canvasContainer=document.getElementById('canvas-container');
+const yardCanvas=document.getElementById('yard-canvas');
+yardCanvas.style.width=CANVAS_W+'px';yardCanvas.style.height=CANVAS_H+'px';
+function applyTransform(){yardCanvas.style.transform=`translate(${panOffset.x}px,${panOffset.y}px) scale(${zoom})`;document.getElementById('zoom-level').textContent=Math.round(zoom*100)+'%';}
+function zoomIn(){zoom=Math.min(zoom*1.2,3);applyTransform();}
+function zoomOut(){zoom=Math.max(zoom/1.2,0.3);applyTransform();}
+function resetView(){zoom=1;panOffset={x:0,y:0};applyTransform();}
+canvasContainer.addEventListener('wheel',(e)=>{e.preventDefault();const rect=canvasContainer.getBoundingClientRect();const mx=e.clientX-rect.left,my=e.clientY-rect.top;const oldZoom=zoom;const delta=e.deltaY>0?0.9:1.1;zoom=Math.max(0.3,Math.min(zoom*delta,3));panOffset.x=mx-(mx-panOffset.x)*(zoom/oldZoom);panOffset.y=my-(my-panOffset.y)*(zoom/oldZoom);applyTransform();});
+canvasContainer.addEventListener('mousedown',(e)=>{if(e.target===canvasContainer||e.target===yardCanvas||e.target.classList.contains('yard-area')||e.target.classList.contains('bay-label')){isPanning=true;panStart={x:e.clientX-panOffset.x,y:e.clientY-panOffset.y};canvasContainer.classList.add('panning');deselectBridge();}});
+window.addEventListener('mousemove',(e)=>{if(isPanning){panOffset={x:e.clientX-panStart.x,y:e.clientY-panStart.y};applyTransform();}if(draggingBridge){handleBridgeDrag(e);}if(rotatingBridge){const el=document.getElementById(`bridge-${rotatingBridge.id}`);if(!el)return;const rect=el.getBoundingClientRect();const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;const angle=Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI;rotatingBridge.rotation=(rotateStartRotation+angle-rotateStartAngle)%360;el.style.transform=`rotate(${rotatingBridge.rotation}deg)`;}});
+window.addEventListener('mouseup',()=>{if(isPanning){isPanning=false;canvasContainer.classList.remove('panning');}if(draggingBridge){draggingBridge.classList.remove('dragging');draggingBridge=null;saveData();}if(rotatingBridge){rotatingBridge=null;saveData();}});
+function addBridge(type){const cfg=BRIDGE_TYPES[type];if(!cfg)return;const rect=canvasContainer.getBoundingClientRect();const cx=(rect.width/2-panOffset.x)/zoom-cfg.defaultW/2,cy=(rect.height/2-panOffset.y)/zoom-cfg.defaultH/2;const bridge={id:nextId++,type:type,x:Math.max(60,Math.min(cx,CANVAS_W-cfg.defaultW-60)),y:Math.max(50,Math.min(cy,CANVAS_H-cfg.defaultH-50)),width:cfg.defaultW,height:cfg.defaultH,rotation:0,jobNumber:'',jobName:'',status:'In Yard',qcStatus:'Pending',span:'',weight:'',heatNumber:'',location:'',notes:'',dateIn:new Date().toISOString().split('T')[0]};bridges.push(bridge);renderBridge(bridge);selectBridge(bridge.id);updateStats();saveData();setStatus(`Added ${cfg.label}`);}
+function renderBridge(bridge){const cfg=BRIDGE_TYPES[bridge.type];const el=document.createElement('div');el.className=`bridge-asset bridge-${bridge.type}`;el.id=`bridge-${bridge.id}`;el.dataset.bridgeId=bridge.id;el.style.left=bridge.x+'px';el.style.top=bridge.y+'px';el.style.width=bridge.width+'px';el.style.height=bridge.height+'px';el.style.transform=`rotate(${bridge.rotation}deg)`;const visual=document.createElement('div');visual.className='bridge-visual';el.appendChild(visual);if(bridge.qcStatus==='Hold'){const tag=document.createElement('div');tag.className='qc-tag';tag.textContent='!';el.appendChild(tag);}if(bridge.jobNumber){const label=document.createElement('div');label.className='bridge-label';label.textContent=bridge.jobNumber;el.appendChild(label);}const rh=document.createElement('div');rh.className='rotate-handle';rh.innerHTML='↻';rh.addEventListener('mousedown',(e)=>{e.stopPropagation();e.preventDefault();rotatingBridge=bridge;const r=el.getBoundingClientRect();const cx=r.left+r.width/2,cy=r.top+r.height/2;rotateStartAngle=Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI;rotateStartRotation=bridge.rotation;});el.appendChild(rh);el.addEventListener('mousedown',(e)=>{if(e.target.classList.contains('rotate-handle'))return;e.stopPropagation();e.preventDefault();selectBridge(bridge.id);draggingBridge=el;el.classList.add('dragging');const rect=yardCanvas.getBoundingClientRect();dragOffset={x:(e.clientX-rect.left)/zoom-bridge.x,y:(e.clientY-rect.top)/zoom-bridge.y};});el.addEventListener('dblclick',(e)=>{e.stopPropagation();selectBridge(bridge.id);showInfoPanel(bridge);});yardCanvas.appendChild(el);}
+function handleBridgeDrag(e){if(!draggingBridge)return;const id=parseInt(draggingBridge.dataset.bridgeId);const bridge=bridges.find(b=>b.id===id);if(!bridge)return;const rect=yardCanvas.getBoundingClientRect();bridge.x=Math.max(56,Math.min((e.clientX-rect.left)/zoom-dragOffset.x,CANVAS_W-bridge.width-50));bridge.y=Math.max(40,Math.min((e.clientY-rect.top)/zoom-dragOffset.y,CANVAS_H-bridge.height-44));draggingBridge.style.left=bridge.x+'px';draggingBridge.style.top=bridge.y+'px';}
+function rotateSelected(){if(!selectedBridge)return;const bridge=bridges.find(b=>b.id===selectedBridge);if(!bridge)return;bridge.rotation=(bridge.rotation+45)%360;const el=document.getElementById(`bridge-${bridge.id}`);if(el)el.style.transform=`rotate(${bridge.rotation}deg)`;saveData();setStatus('Rotated');}
+function selectBridge(id){deselectBridge();selectedBridge=id;const el=document.getElementById(`bridge-${id}`);if(el)el.classList.add('selected');const bridge=bridges.find(b=>b.id===id);if(bridge)showInfoPanel(bridge);}
+function deselectBridge(){if(selectedBridge){const el=document.getElementById(`bridge-${selectedBridge}`);if(el)el.classList.remove('selected');selectedBridge=null;}}
+function deleteSelected(){if(!selectedBridge)return;const bridge=bridges.find(b=>b.id===selectedBridge);if(!bridge)return;bridges=bridges.filter(b=>b.id!==selectedBridge);const el=document.getElementById(`bridge-${selectedBridge}`);if(el)el.remove();selectedBridge=null;closeInfoPanel();updateStats();saveData();setStatus('Deleted');}
+function showInfoPanel(bridge){const panel=document.getElementById('info-panel');const content=document.getElementById('info-content');panel.classList.add('visible');const cfg=BRIDGE_TYPES[bridge.type];content.innerHTML=`<div class="info-edit-row"><label>Type</label><input type="text" value="${cfg.label}" disabled style="opacity:0.6"></div><div class="info-edit-row"><label>Job #</label><input type="text" id="edit-jobNumber" value="${bridge.jobNumber||''}" placeholder="e.g. 24-0153"></div><div class="info-edit-row"><label>Job Name</label><input type="text" id="edit-jobName" value="${bridge.jobName||''}" placeholder="e.g. CR-66 Bridge"></div><div class="info-edit-row"><label>Status</label><select id="edit-status"><option value="In Yard" ${bridge.status==='In Yard'?'selected':''}>In Yard</option><option value="In Shop" ${bridge.status==='In Shop'?'selected':''}>In Shop</option><option value="QC Hold" ${bridge.status==='QC Hold'?'selected':''}>QC Hold</option><option value="Ready to Ship" ${bridge.status==='Ready to Ship'?'selected':''}>Ready to Ship</option><option value="Shipped" ${bridge.status==='Shipped'?'selected':''}>Shipped</option></select></div><div class="info-edit-row"><label>QC Status</label><select id="edit-qcStatus"><option value="Pending" ${bridge.qcStatus==='Pending'?'selected':''}>Pending</option><option value="Hold" ${bridge.qcStatus==='Hold'?'selected':''}>⚠️ Hold</option><option value="Pass" ${bridge.qcStatus==='Pass'?'selected':''}>Pass</option><option value="Fail" ${bridge.qcStatus==='Fail'?'selected':''}>Fail</option></select></div><div class="info-edit-row"><label>Span (ft)</label><input type="text" id="edit-span" value="${bridge.span||''}" placeholder="e.g. 80"></div><div class="info-edit-row"><label>Weight (lbs)</label><input type="text" id="edit-weight" value="${bridge.weight||''}" placeholder="e.g. 15,000"></div><div class="info-edit-row"><label>Heat #</label><input type="text" id="edit-heatNumber" value="${bridge.heatNumber||''}" placeholder="MTR heat #"></div><div class="info-edit-row"><label>Location</label><input type="text" id="edit-location" value="${bridge.location||''}" placeholder="e.g. Bay 3"></div><div class="info-edit-row"><label>Date In</label><input type="date" id="edit-dateIn" value="${bridge.dateIn||''}"></div><div class="info-edit-row"><label>Notes</label><textarea id="edit-notes" rows="2" placeholder="Notes...">${bridge.notes||''}</textarea></div>`;document.getElementById('edit-qcStatus')?.addEventListener('change',(e)=>{if(e.target.value==='Hold')document.getElementById('edit-status').value='QC Hold';});}
+function saveBridgeInfo(){if(!selectedBridge)return;const bridge=bridges.find(b=>b.id===selectedBridge);if(!bridge)return;bridge.jobNumber=document.getElementById('edit-jobNumber').value;bridge.jobName=document.getElementById('edit-jobName').value;bridge.status=document.getElementById('edit-status').value;bridge.qcStatus=document.getElementById('edit-qcStatus').value;bridge.span=document.getElementById('edit-span').value;bridge.weight=document.getElementById('edit-weight').value;bridge.heatNumber=document.getElementById('edit-heatNumber').value;bridge.location=document.getElementById('edit-location').value;bridge.dateIn=document.getElementById('edit-dateIn').value;bridge.notes=document.getElementById('edit-notes').value;const el=document.getElementById(`bridge-${bridge.id}`);if(el)el.remove();renderBridge(bridge);selectBridge(bridge.id);saveData();updateStats();setStatus('Saved');}
+function closeInfoPanel(){document.getElementById('info-panel').classList.remove('visible');}
+function updateStats(){document.getElementById('stat-total').textContent=bridges.length;document.getElementById('stat-qc').textContent=bridges.filter(b=>b.qcStatus==='Hold').length;document.getElementById('stat-ready').textContent=bridges.filter(b=>b.status==='Ready to Ship').length;document.getElementById('stat-shipped').textContent=bridges.filter(b=>b.status==='Shipped').length;document.getElementById('bridge-count').textContent=bridges.length;}
+function setStatus(msg){document.getElementById('last-action').textContent=msg;}
+function saveData(){try{localStorage.setItem('contech_yard_tracker',JSON.stringify({bridges,nextId}));}catch(e){}}
+function loadData(){try{const raw=localStorage.getItem('contech_yard_tracker');if(!raw)return false;const data=JSON.parse(raw);bridges=data.bridges||[];nextId=data.nextId||(bridges.length+1);document.querySelectorAll('.bridge-asset').forEach(el=>el.remove());bridges.forEach(b=>renderBridge(b));updateStats();return true;}catch(e){return false;}}
+function exportData(){const data=JSON.stringify({bridges,nextId,exportDate:new Date().toISOString()},null,2);const blob=new Blob([data],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`yard_tracker_${new Date().toISOString().split('T')[0]}.json`;a.click();URL.revokeObjectURL(url);setStatus('Exported');}
+function clearAll(){if(!confirm('Clear all bridges?'))return;bridges=[];nextId=1;document.querySelectorAll('.bridge-asset').forEach(el=>el.remove());saveData();updateStats();closeInfoPanel();setStatus('Cleared');}
+function loadSampleData(){bridges=[{id:1,type:'girder',x:80,y:80,width:120,height:28,rotation:0,jobNumber:'24-0153',jobName:'CR-66 Overpass',status:'In Yard',qcStatus:'Pending',span:'80',weight:'15,000',heatNumber:'H-4471',location:'Bay 1',notes:'',dateIn:'2026-07-28'},{id:2,type:'pedestrian',x:300,y:80,width:100,height:20,rotation:0,jobNumber:'24-0188',jobName:'Riverwalk Trail',status:'QC Hold',qcStatus:'Hold',span:'60',weight:'8,200',heatNumber:'H-5102',location:'Bay 2',notes:'Weld inspection failed - rework needed',dateIn:'2026-07-25'},{id:3,type:'truss',x:80,y:280,width:130,height:32,rotation:0,jobNumber:'24-0201',jobName:'Hwy 85 Bridge',status:'Ready to Ship',qcStatus:'Pass',span:'100',weight:'22,000',heatNumber:'H-5234',location:'Bay 5',notes:'',dateIn:'2026-07-20'},{id:4,type:'modular',x:300,y:280,width:60,height:24,rotation:90,jobNumber:'24-0215',jobName:'Culvert Ext',status:'In Yard',qcStatus:'Pending',span:'40',weight:'5,000',heatNumber:'H-5301',location:'Bay 6',notes:'',dateIn:'2026-07-29'},{id:5,type:'loose_parts',x:500,y:300,width:40,height:36,rotation:0,jobNumber:'24-0190',jobName:'Hardware Kit',status:'In Yard',qcStatus:'Pending',span:'',weight:'500',heatNumber:'',location:'Bay 7',notes:'Bolts, plates, hardware',dateIn:'2026-07-27'}];nextId=6;document.querySelectorAll('.bridge-asset').forEach(el=>el.remove());bridges.forEach(b=>renderBridge(b));updateStats();saveData();}
+window.addEventListener('load',()=>{if(!loadData())loadSampleData();});
+window.addEventListener('keydown',(e)=>{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;if(e.key==='Delete'||e.key==='Backspace')if(selectedBridge)deleteSelected();if(e.key==='r'||e.key==='R')rotateSelected();if(e.key==='Escape'){deselectBridge();closeInfoPanel();}});
+yardCanvas.addEventListener('click',(e)=>{if(e.target===yardCanvas||e.target.classList.contains('yard-area')){deselectBridge();closeInfoPanel();}});
+</script>
+</body>
+</html><script id="__base44_dark_class_post__">document.documentElement.classList.remove('dark');</script></body></html>
