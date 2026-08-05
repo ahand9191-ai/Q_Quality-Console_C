@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html><head><script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.4/tesseract.min.js"></script></head>
+<body><div id="out">Loading...</div>
+<script>
+window.onload = function() {
+  var out = document.getElementById('out');
+  if (typeof Tesseract === 'undefined') { out.textContent = 'Tesseract FAILED to load'; return; }
+  out.innerHTML = 'Tesseract loaded OK<br>';
+  out.innerHTML += 'Tesseract.recognize: ' + (typeof Tesseract.recognize) + '<br>';
+  out.innerHTML += 'Keys: ' + Object.keys(Tesseract).join(', ');
+};
+</script></body></html>
