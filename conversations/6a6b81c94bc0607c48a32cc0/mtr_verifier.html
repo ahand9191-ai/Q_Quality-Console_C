@@ -8,8 +8,6 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia, serif; background: #f5f5f5; color: #1a1a1a; overflow: hidden; font-size: 14px; }
 #app { display: flex; flex-direction: column; height: 100%; }
-
-/* HEADER BAR */
 #header { background: #1a3a5c; color: #fff; padding: 8px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; border-bottom: 3px solid #c5a05e; }
 #header .title { font-size: 16px; font-weight: bold; font-family: 'Arial', sans-serif; letter-spacing: 0.5px; }
 #header .subtitle { font-size: 11px; color: #b0c4d8; font-family: 'Arial', sans-serif; }
@@ -20,20 +18,16 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 .btn-primary { background: #1a3a5c; color: #fff; border-color: #1a3a5c; }
 .btn-primary:hover { background: #154060; }
 .btn-primary:disabled { background: #6a7a8a; border-color: #6a7a8a; }
-
-/* MAIN */
 #main { display: flex; flex: 1; overflow: hidden; }
-
-/* LEFT PANEL */
-#sidebar { width: 360px; min-width: 360px; background: #fff; border-right: 1px solid #999; overflow-y: auto; }
+#sidebar { width: 380px; min-width: 380px; background: #fff; border-right: 1px solid #999; overflow-y: auto; }
 .section { padding: 12px 16px; border-bottom: 1px solid #ddd; }
 .section h3 { font-size: 11px; font-family: 'Arial', sans-serif; text-transform: uppercase; letter-spacing: 0.8px; color: #1a3a5c; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #ddd; font-weight: bold; }
 .field { margin-bottom: 8px; }
 .field label { display: block; font-size: 11px; font-family: 'Arial', sans-serif; color: #555; margin-bottom: 3px; }
 .field input, .field select { width: 100%; padding: 5px 8px; border: 1px solid #999; font-size: 13px; font-family: 'Arial', sans-serif; background: #fafafa; color: #1a1a1a; }
 .field input:focus, .field select:focus { outline: none; border-color: #1a3a5c; background: #fff; }
-
-/* CHEM TABLE */
+.field-row { display: flex; gap: 8px; }
+.field-row .field { flex: 1; }
 .chem-tbl { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'Arial', sans-serif; }
 .chem-tbl th { text-align: left; padding: 4px 6px; font-size: 10px; text-transform: uppercase; color: #555; border-bottom: 2px solid #999; font-weight: bold; }
 .chem-tbl td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
@@ -42,8 +36,6 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 .st-pass { color: #1a7a30; font-weight: bold; font-size: 11px; }
 .st-fail { color: #c00; font-weight: bold; font-size: 11px; }
 .st-na { color: #999; font-size: 11px; }
-
-/* PDF VIEWER */
 #viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #e0e0e0; }
 #pdf-bar { padding: 6px 16px; background: #d0d0d0; border-bottom: 1px solid #999; display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 12px; }
 #pdf-wrap { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 16px; position: relative; }
@@ -54,8 +46,6 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 #drop-zone p { font-size: 14px; margin-bottom: 4px; font-weight: bold; }
 #drop-zone .sub { font-size: 12px; color: #888; font-weight: normal; }
 #hl-overlay { position: absolute; pointer-events: none; }
-
-/* HIGHLIGHTS */
 .hl-box { position: absolute; border: 2px solid; pointer-events: none; z-index: 10; }
 .hl-box.hl-heat { border-color: #1a3a5c; background: rgba(26,58,92,0.08); }
 .hl-box.hl-grade { border-color: #1a7a30; background: rgba(26,122,48,0.08); }
@@ -70,13 +60,9 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 .hl-box.hl-cvn .hl-label { background: #6b3a6b; }
 .hl-box.hl-mech .hl-label { background: #2a6b7a; }
 .hl-box.hl-cert .hl-label { background: #c75a1a; }
-
-/* HIGHLIGHT TOGGLES */
 .hl-toggles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .hl-chip { padding: 3px 8px; font-size: 10px; font-family: 'Arial', sans-serif; cursor: pointer; border: 1px solid #999; background: #f5f5f5; color: #555; text-transform: uppercase; letter-spacing: 0.3px; }
 .hl-chip.active { background: #1a3a5c; color: #fff; border-color: #1a3a5c; }
-
-/* REPORT PANEL */
 #report-panel { position: fixed; top: 0; right: -560px; width: 540px; height: 100%; background: #fff; border-left: 2px solid #1a3a5c; transition: right 0.3s; z-index: 100; display: flex; flex-direction: column; font-family: 'Times New Roman', Georgia, serif; }
 #report-panel.open { right: 0; }
 #report-header { background: #1a3a5c; color: #fff; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; font-family: 'Arial', sans-serif; }
@@ -98,14 +84,13 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 .rpt-footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #999; font-size: 10px; font-family: 'Arial', sans-serif; color: #888; line-height: 1.5; }
 .rpt-header-info { font-size: 12px; font-family: 'Arial', sans-serif; margin-bottom: 12px; color: #333; line-height: 1.5; }
 .rpt-header-info strong { color: #1a3a5c; }
-
-/* SCROLLBAR */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #e0e0e0; }
 ::-webkit-scrollbar-thumb { background: #aaa; }
 ::-webkit-scrollbar-thumb:hover { background: #888; }
 .hidden { display: none !important; }
 .note { font-size: 11px; font-family: 'Arial', sans-serif; color: #666; margin-top: 4px; line-height: 1.4; }
+.divider { height: 1px; background: #ddd; margin: 8px 0; }
 </style>
 </head>
 <body>
@@ -123,24 +108,36 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
   </div>
 
   <div id="main">
-    <!-- LEFT PANEL -->
     <div id="sidebar">
       <div class="section">
         <h3>MTR Information</h3>
         <div class="field"><label>PO Number</label><input id="po-number" placeholder="e.g. 1867667"></div>
         <div class="field"><label>Mill / Supplier</label><input id="mill-name" placeholder="e.g. Nucor-Yamato Steel"></div>
-        <div class="field"><label>Specification</label>
-          <select id="spec-select">
-            <option value="A588-A709-50W">ASTM A588 Gr B / A709 Gr 50W</option>
-            <option value="A709-50W">ASTM A709 Gr 50W</option>
-            <option value="A588">ASTM A588 Gr B</option>
-            <option value="A709-50">ASTM A709 Gr 50</option>
-            <option value="A36">ASTM A36</option>
-            <option value="A572-50">ASTM A572 Gr 50</option>
-            <option value="A992">ASTM A992</option>
-          </select>
+        <div class="field-row">
+          <div class="field"><label>Material Type</label>
+            <select id="mat-type" onchange="onMaterialChange()">
+              <option value="beam">Beam (W-Shape)</option>
+              <option value="channel">Channel</option>
+              <option value="angle">Angle</option>
+              <option value="flatbar">Flat Bar</option>
+              <option value="plate">Plate</option>
+              <option value="decking">Decking</option>
+              <option value="hss-round">HSS Round</option>
+              <option value="hss-square">HSS Square / Rect.</option>
+              <option value="pipe">Pipe</option>
+              <option value="round-bar">Round Bar</option>
+              <option value="sheet">Sheet</option>
+              <option value="square-bar">Square Bar</option>
+              <option value="studs">Studs</option>
+              <option value="bearings">Bearings</option>
+              <option value="hardware">Hardware (Bolts/Fasteners)</option>
+            </select>
+          </div>
+          <div class="field"><label>Specification</label>
+            <select id="spec-select" onchange="initChem()"></select>
+          </div>
         </div>
-        <div class="field"><label>Type (Beam Designation)</label><input id="beam-type" placeholder="e.g. W24x76"></div>
+        <div class="field"><label id="type-label">Beam Designation</label><input id="beam-type" placeholder="e.g. W24x76"></div>
         <div class="field"><label>Quantity</label><input id="quantity" placeholder="e.g. 40 ft 0 in"></div>
       </div>
 
@@ -148,9 +145,11 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
         <h3>Heat Number & Impact Testing</h3>
         <div class="field"><label>Heat #1</label><input id="heat1" placeholder="e.g. 627779"></div>
         <div class="field"><label>Heat #2 (if applicable)</label><input id="heat2" placeholder="e.g. 627781"></div>
-        <div class="field"><label>CVN Test Temp (F)</label><input id="cvn-temp" placeholder="e.g. 40" value="40"></div>
-        <div class="field"><label>CVN Zone</label>
-          <select id="cvn-zone"><option value="1">Zone 1 (70F)</option><option value="2" selected>Zone 2 (40F)</option><option value="3">Zone 3 (10F)</option></select>
+        <div class="field-row">
+          <div class="field"><label>CVN Test Temp (F)</label><input id="cvn-temp" placeholder="40" value="40"></div>
+          <div class="field"><label>CVN Zone</label>
+            <select id="cvn-zone"><option value="1">Zone 1 (70F)</option><option value="2" selected>Zone 2 (40F)</option><option value="3">Zone 3 (10F)</option></select>
+          </div>
         </div>
         <div class="field"><label>Fracture Critical Member (FCM)</label>
           <select id="fcm-select"><option value="N">No — Non-FCM</option><option value="Y">Yes — FCM</option></select>
@@ -161,7 +160,6 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
         <h3>Chemical Composition — Heat 1</h3>
         <table class="chem-tbl"><thead><tr><th>Element</th><th>Value %</th><th>Spec Limit</th><th>Status</th></tr></thead><tbody id="chem-1"></tbody></table>
       </div>
-
       <div class="section">
         <h3>Chemical Composition — Heat 2</h3>
         <table class="chem-tbl"><thead><tr><th>Element</th><th>Value %</th><th>Spec Limit</th><th>Status</th></tr></thead><tbody id="chem-2"></tbody></table>
@@ -170,9 +168,9 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
       <div class="section">
         <h3>Welding Code Parameters</h3>
         <div class="field"><label>Applicable Welding Code</label>
-          <select id="weld-code"><option value="D1.5">AWS D1.5 (Bridge)</option><option value="D1.1">AWS D1.1 (Structural)</option><option value="both">Both D1.1 and D1.5</option></select>
+          <select id="weld-code"><option value="D1.5">AWS D1.5 (Bridge)</option><option value="D1.1">AWS D1.1 (Structural)</option><option value="both">Both D1.1 and D1.5</option><option value="none">Not Applicable</option></select>
         </div>
-        <div class="field"><label>Flange Thickness (in)</label><input id="flange-thick" placeholder="e.g. 0.68"></div>
+        <div class="field"><label id="thick-label">Flange Thickness (in)</label><input id="flange-thick" placeholder="e.g. 0.68"></div>
         <div class="note" id="preheat-info"></div>
       </div>
 
@@ -189,7 +187,6 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
       </div>
     </div>
 
-    <!-- PDF VIEWER -->
     <div id="viewer">
       <div id="pdf-bar" class="hidden">
         <button class="btn" onclick="prevPage()">PREV</button>
@@ -212,7 +209,6 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
     </div>
   </div>
 
-  <!-- REPORT PANEL -->
   <div id="report-panel">
     <div id="report-header">
       <h2>COMPLIANCE REPORT</h2>
@@ -226,187 +222,259 @@ html, body { width: 100%; height: 100%; font-family: 'Times New Roman', Georgia,
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ===== SPEC DATABASES =====
+// ===== SPEC DATABASE =====
 const SPECS = {
-  'A588-A709-50W': {
-    name: 'ASTM A588 Grade B / A709 Grade 50W',
-    elements: {
-      C:  { min: null, max: 0.19, label: 'Carbon' },
-      Mn: { min: 0.80, max: 1.25, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: 0.15, max: 0.40, label: 'Silicon' },
-      Cu: { min: 0.20, max: 0.50, label: 'Copper' },
-      Ni: { min: null, max: 0.50, label: 'Nickel' },
-      Cr: { min: 0.40, max: 0.70, label: 'Chromium' },
-      V:  { min: 0.01, max: 0.10, label: 'Vanadium' },
-      Mo: { min: null, max: 0.06, label: 'Molybdenum' },
-      Nb: { min: null, max: 0.03, label: 'Niobium' },
-      B:  { min: null, max: 0.006, label: 'Boron' }
-    }
-  },
-  'A709-50W': {
-    name: 'ASTM A709 Grade 50W',
-    elements: {
-      C:  { min: null, max: 0.19, label: 'Carbon' },
-      Mn: { min: 0.80, max: 1.25, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: 0.15, max: 0.40, label: 'Silicon' },
-      Cu: { min: 0.20, max: 0.50, label: 'Copper' },
-      Ni: { min: null, max: 0.50, label: 'Nickel' },
-      Cr: { min: 0.40, max: 0.70, label: 'Chromium' },
-      V:  { min: 0.01, max: 0.10, label: 'Vanadium' },
-      Mo: { min: null, max: 0.06, label: 'Molybdenum' },
-      Nb: { min: null, max: 0.03, label: 'Niobium' },
-      B:  { min: null, max: 0.006, label: 'Boron' }
-    }
-  },
-  'A588': {
-    name: 'ASTM A588 Grade B',
-    elements: {
-      C:  { min: null, max: 0.20, label: 'Carbon' },
-      Mn: { min: 0.75, max: 1.35, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: 0.15, max: 0.50, label: 'Silicon' },
-      Cu: { min: 0.20, max: 0.50, label: 'Copper' },
-      Ni: { min: null, max: 0.50, label: 'Nickel' },
-      Cr: { min: 0.40, max: 0.70, label: 'Chromium' },
-      V:  { min: 0.01, max: 0.10, label: 'Vanadium' }
-    }
-  },
-  'A709-50': {
-    name: 'ASTM A709 Grade 50',
-    elements: {
-      C:  { min: null, max: 0.23, label: 'Carbon' },
-      Mn: { min: null, max: 1.35, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: null, max: 0.40, label: 'Silicon' }
-    }
-  },
-  'A36': {
-    name: 'ASTM A36',
-    elements: {
-      C:  { min: null, max: 0.26, label: 'Carbon' },
-      Mn: { min: null, max: 1.20, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: null, max: 0.40, label: 'Silicon' },
-      Cu: { min: 0.20, max: null, label: 'Copper (when spec.)' }
-    }
-  },
-  'A572-50': {
-    name: 'ASTM A572 Grade 50',
-    elements: {
-      C:  { min: null, max: 0.23, label: 'Carbon' },
-      Mn: { min: null, max: 1.35, label: 'Manganese' },
-      P:  { min: null, max: 0.040, label: 'Phosphorus' },
-      S:  { min: null, max: 0.050, label: 'Sulfur' },
-      Si: { min: null, max: 0.40, label: 'Silicon' }
-    }
-  },
-  'A992': {
-    name: 'ASTM A992',
-    elements: {
-      C:  { min: null, max: 0.23, label: 'Carbon' },
-      Mn: { min: null, max: 1.35, label: 'Manganese' },
-      P:  { min: null, max: 0.025, label: 'Phosphorus' },
-      S:  { min: null, max: 0.035, label: 'Sulfur' },
-      Si: { min: null, max: 0.40, label: 'Silicon' },
-      Cu: { min: null, max: 0.60, label: 'Copper' },
-      Ni: { min: null, max: 0.45, label: 'Nickel' },
-      Cr: { min: null, max: 0.35, label: 'Chromium' },
-      Mo: { min: null, max: 0.15, label: 'Molybdenum' },
-      V:  { min: null, max: 0.05, label: 'Vanadium' },
-      Nb: { min: null, max: 0.05, label: 'Niobium' }
-    }
-  }
+  // --- Structural Steel ---
+  'A588-A709-50W': { name: 'ASTM A588 Gr B / A709 Gr 50W', weathering: true, elements: {
+    C:{min:null,max:0.19,label:'Carbon'}, Mn:{min:0.80,max:1.25,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:0.15,max:0.40,label:'Silicon'}, Cu:{min:0.20,max:0.50,label:'Copper'},
+    Ni:{min:null,max:0.50,label:'Nickel'}, Cr:{min:0.40,max:0.70,label:'Chromium'},
+    V:{min:0.01,max:0.10,label:'Vanadium'}, Mo:{min:null,max:0.06,label:'Molybdenum'},
+    Nb:{min:null,max:0.03,label:'Niobium'}, B:{min:null,max:0.006,label:'Boron'}
+  }},
+  'A709-50W': { name: 'ASTM A709 Gr 50W', weathering: true, elements: {
+    C:{min:null,max:0.19,label:'Carbon'}, Mn:{min:0.80,max:1.25,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:0.15,max:0.40,label:'Silicon'}, Cu:{min:0.20,max:0.50,label:'Copper'},
+    Ni:{min:null,max:0.50,label:'Nickel'}, Cr:{min:0.40,max:0.70,label:'Chromium'},
+    V:{min:0.01,max:0.10,label:'Vanadium'}, Mo:{min:null,max:0.06,label:'Molybdenum'},
+    Nb:{min:null,max:0.03,label:'Niobium'}, B:{min:null,max:0.006,label:'Boron'}
+  }},
+  'A588': { name: 'ASTM A588 Gr B', weathering: true, elements: {
+    C:{min:null,max:0.20,label:'Carbon'}, Mn:{min:0.75,max:1.35,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:0.15,max:0.50,label:'Silicon'}, Cu:{min:0.20,max:0.50,label:'Copper'},
+    Ni:{min:null,max:0.50,label:'Nickel'}, Cr:{min:0.40,max:0.70,label:'Chromium'},
+    V:{min:0.01,max:0.10,label:'Vanadium'}
+  }},
+  'A992': { name: 'ASTM A992', elements: {
+    C:{min:null,max:0.23,label:'Carbon'}, Mn:{min:null,max:1.35,label:'Manganese'},
+    P:{min:null,max:0.025,label:'Phosphorus'}, S:{min:null,max:0.035,label:'Sulfur'},
+    Si:{min:null,max:0.40,label:'Silicon'}, Cu:{min:null,max:0.60,label:'Copper'},
+    Ni:{min:null,max:0.45,label:'Nickel'}, Cr:{min:null,max:0.35,label:'Chromium'},
+    Mo:{min:null,max:0.15,label:'Molybdenum'}, V:{min:null,max:0.05,label:'Vanadium'},
+    Nb:{min:null,max:0.05,label:'Niobium'}
+  }},
+  'A572-50': { name: 'ASTM A572 Gr 50', elements: {
+    C:{min:null,max:0.23,label:'Carbon'}, Mn:{min:null,max:1.35,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:null,max:0.40,label:'Silicon'}
+  }},
+  'A709-50': { name: 'ASTM A709 Gr 50', elements: {
+    C:{min:null,max:0.23,label:'Carbon'}, Mn:{min:null,max:1.35,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:null,max:0.40,label:'Silicon'}
+  }},
+  'A36': { name: 'ASTM A36', elements: {
+    C:{min:null,max:0.26,label:'Carbon'}, Mn:{min:null,max:1.20,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:null,max:0.40,label:'Silicon'}, Cu:{min:0.20,max:null,label:'Copper (when spec.)'}
+  }},
+  // --- HSS ---
+  'A500-B': { name: 'ASTM A500 Gr B (HSS Round)', elements: {
+    C:{min:null,max:0.22,label:'Carbon'}, Mn:{min:null,max:1.20,label:'Manganese'},
+    P:{min:null,max:0.045,label:'Phosphorus'}, S:{min:null,max:0.045,label:'Sulfur'},
+    Cu:{min:0.18,max:null,label:'Copper (when spec.)'}
+  }},
+  'A500-C': { name: 'ASTM A500 Gr C (HSS)', elements: {
+    C:{min:null,max:0.23,label:'Carbon'}, Mn:{min:null,max:1.35,label:'Manganese'},
+    P:{min:null,max:0.045,label:'Phosphorus'}, S:{min:null,max:0.045,label:'Sulfur'},
+    Cu:{min:0.18,max:null,label:'Copper (when spec.)'}
+  }},
+  // --- Pipe ---
+  'A53-B': { name: 'ASTM A53 Gr B (Pipe)', elements: {
+    C:{min:null,max:0.30,label:'Carbon'}, Mn:{min:null,max:1.20,label:'Manganese'},
+    P:{min:null,max:0.050,label:'Phosphorus'}, S:{min:null,max:0.045,label:'Sulfur'},
+    Cu:{min:0.20,max:null,label:'Copper (when spec.)'}
+  }},
+  'A106-B': { name: 'ASTM A106 Gr B (Pipe)', elements: {
+    C:{min:null,max:0.30,label:'Carbon'}, Mn:{min:0.29,max:1.06,label:'Manganese'},
+    P:{min:null,max:0.035,label:'Phosphorus'}, S:{min:null,max:0.035,label:'Sulfur'},
+    Si:{min:0.10,max:0.30,label:'Silicon'}, Cr:{min:null,max:0.40,label:'Chromium'},
+    Cu:{min:null,max:0.40,label:'Copper'}, Mo:{min:null,max:0.15,label:'Molybdenum'},
+    V:{min:null,max:0.08,label:'Vanadium'}
+  }},
+  // --- Sheet / Decking ---
+  'A653-50': { name: 'ASTM A653 SS Gr 50 (Galv. Sheet)', elements: {
+    C:{min:null,max:0.20,label:'Carbon'}, Mn:{min:null,max:1.20,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.040,label:'Sulfur'}
+  }},
+  'A653-80': { name: 'ASTM A653 SS Gr 80 (Galv. Sheet)', elements: {
+    C:{min:null,max:0.20,label:'Carbon'}, Mn:{min:null,max:1.65,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.040,label:'Sulfur'}
+  }},
+  // --- Studs ---
+  'A108-1018': { name: 'ASTM A108 Gr 1018 (Studs)', elements: {
+    C:{min:0.15,max:0.20,label:'Carbon'}, Mn:{min:0.60,max:0.90,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'},
+    Si:{min:null,max:0.30,label:'Silicon'}
+  }},
+  // --- Hardware ---
+  'F1554-36': { name: 'ASTM F1554 Gr 36 (Anchor Bolt)', elements: {
+    C:{min:null,max:0.26,label:'Carbon'}, Mn:{min:0.60,max:0.90,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'}
+  }},
+  'F1554-55': { name: 'ASTM F1554 Gr 55 (Anchor Bolt)', elements: {
+    C:{min:null,max:0.27,label:'Carbon'}, Mn:{min:0.60,max:0.90,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'}
+  }},
+  'F1554-105': { name: 'ASTM F1554 Gr 105 (Anchor Bolt)', elements: {
+    C:{min:null,max:0.28,label:'Carbon'}, Mn:{min:0.60,max:0.90,label:'Manganese'},
+    P:{min:null,max:0.040,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'}
+  }},
+  'A325': { name: 'ASTM A325 (Bolt)', elements: {
+    C:{min:0.20,max:0.55,label:'Carbon'}, Mn:{min:0.20,max:0.50,label:'Manganese'},
+    P:{min:null,max:0.060,label:'Phosphorus'}, S:{min:null,max:0.050,label:'Sulfur'}
+  }},
+  'A490': { name: 'ASTM A490 (Bolt)', elements: {
+    C:{min:0.28,max:0.48,label:'Carbon'}, Mn:{min:0.50,max:1.20,label:'Manganese'},
+    P:{min:null,max:0.030,label:'Phosphorus'}, S:{min:null,max:0.040,label:'Sulfur'},
+    Si:{min:0.15,max:0.30,label:'Silicon'}
+  }},
+};
+
+// ===== MATERIAL TYPE → SPEC MAPPING =====
+const MAT_SPECS = {
+  beam:       ['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50'],
+  channel:    ['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],
+  angle:      ['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],
+  flatbar:    ['A36','A572-50','A588-A709-50W','A588','A709-50W'],
+  plate:      ['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],
+  decking:    ['A653-50','A653-80'],
+  'hss-round':['A500-B','A500-C'],
+  'hss-square':['A500-B','A500-C'],
+  pipe:       ['A53-B','A106-B'],
+  'round-bar':['A36','A108-1018'],
+  sheet:      ['A653-50','A653-80'],
+  'square-bar':['A36','A572-50'],
+  studs:      ['A108-1018'],
+  bearings:   ['A588-A709-50W','A709-50W','A36','A572-50'],
+  hardware:   ['F1554-36','F1554-55','F1554-105','A325','A490'],
+};
+
+const MAT_LABELS = {
+  beam:'Beam Designation (e.g. W24x76)', channel:'Size (e.g. C12x25)', angle:'Size (e.g. L4x4x1/2)',
+  flatbar:'Size (e.g. 1/2 x 4)', plate:'Thickness x Width x Length', decking:'Type (e.g. 1.5B 22ga)',
+  'hss-round':'Size (e.g. HSS 6x0.500)', 'hss-square':'Size (e.g. HSS 6x6x0.500)',
+  pipe:'Size (e.g. 6in Sch 40)', 'round-bar':'Diameter (e.g. 1-1/2in)',
+  sheet:'Thickness x Width x Length', 'square-bar':'Size (e.g. 1x1)',
+  studs:'Size (e.g. 3/4 x 6)', bearings:'Type', hardware:'Type (e.g. A325 3/4 bolt)'
+};
+const THICK_LABELS = {
+  beam:'Flange Thickness (in)', channel:'Web Thickness (in)', angle:'Leg Thickness (in)',
+  flatbar:'Thickness (in)', plate:'Plate Thickness (in)', decking:'Gauge / Thickness',
+  'hss-round':'Wall Thickness (in)', 'hss-square':'Wall Thickness (in)',
+  pipe:'Wall Thickness (in)', 'round-bar':'Diameter (in)', sheet:'Thickness (in)',
+  'square-bar':'Bar Size (in)', studs:'Stud Diameter (in)', bearings:'Thickness (in)',
+  hardware:'Bolt Diameter (in)'
 };
 
 // ===== PREHEAT TABLES =====
-const D11_PREHEAT = [
-  { t: 0.125, p: 32, l: 'Up to 1/8"' }, { t: 0.25, p: 32, l: '1/8" to 1/4"' },
-  { t: 0.5, p: 50, l: '1/4" to 1/2"' }, { t: 0.75, p: 50, l: '1/2" to 3/4"' },
-  { t: 1.5, p: 150, l: '3/4" to 1-1/2"' }, { t: 2.5, p: 225, l: '1-1/2" to 2-1/2"' },
-  { t: 999, p: 300, l: 'Over 2-1/2"' }
-];
-const D15_NONFCM = [
-  { t: 0.75, p: 70, l: 'Up to 3/4"' }, { t: 1.5, p: 70, l: '3/4" to 1-1/2"' },
-  { t: 2.5, p: 150, l: '1-1/2" to 2-1/2"' }, { t: 999, p: 200, l: 'Over 2-1/2"' }
-];
-const D15_FCM = [
-  { t: 0.375, p: 70, l: 'Up to 3/8"' }, { t: 0.75, p: 100, l: '3/8" to 3/4"' },
-  { t: 1.5, p: 150, l: '3/4" to 1-1/2"' }, { t: 2.5, p: 200, l: '1-1/2" to 2-1/2"' },
-  { t: 999, p: 300, l: 'Over 2-1/2"' }
-];
-const CVN_REQ = { 1: { t: 70, e: 15, l: 'Zone 1 (70F)' }, 2: { t: 40, e: 15, l: 'Zone 2 (40F)' }, 3: { t: 10, e: 15, l: 'Zone 3 (10F)' } };
-const CVN_FCM = { 1: { t: 70, e: 25, s: 20, l: 'Zone 1 FCM' }, 2: { t: 40, e: 25, s: 20, l: 'Zone 2 FCM' }, 3: { t: 10, e: 25, s: 20, l: 'Zone 3 FCM' } };
+const D11_CAT_A = [{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:32},{t:0.75,p:32},{t:1.5,p:50},{t:2.5,p:150},{t:999,p:225}];
+const D11_CAT_B = [{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:50},{t:0.75,p:50},{t:1.5,p:150},{t:2.5,p:225},{t:999,p:300}];
+const D15_NONFCM = [{t:0.75,p:70,l:'Up to 3/4"'},{t:1.5,p:70,l:'3/4" to 1-1/2"'},{t:2.5,p:150,l:'1-1/2" to 2-1/2"'},{t:999,p:200,l:'Over 2-1/2"'}];
+const D15_FCM = [{t:0.375,p:70,l:'Up to 3/8"'},{t:0.75,p:100,l:'3/8" to 3/4"'},{t:1.5,p:150,l:'3/4" to 1-1/2"'},{t:2.5,p:200,l:'1-1/2" to 2-1/2"'},{t:999,p:300,l:'Over 2-1/2"'}];
+const CVN_REQ = {1:{t:70,e:15},2:{t:40,e:15},3:{t:10,e:15}};
+const CVN_FCM = {1:{t:70,e:25,s:20},2:{t:40,e:25,s:20},3:{t:10,e:25,s:20}};
 
-let pdfDoc = null, curPage = 1, scale = 1.5, hlVisible = true;
-let chem1 = {}, chem2 = {};
+// ===== STATE =====
+let pdfDoc=null, curPage=1, scale=1.5, hlVisible=true, chem1={}, chem2={};
+
+// ===== INIT =====
+function onMaterialChange() {
+  const mat = document.getElementById('mat-type').value;
+  const specs = MAT_SPECS[mat] || [];
+  const sel = document.getElementById('spec-select');
+  sel.innerHTML = specs.map(s => `<option value="${s}">${SPECS[s].name}</option>`).join('');
+  document.getElementById('type-label').textContent = MAT_LABELS[mat] || 'Size';
+  document.getElementById('thick-label').textContent = THICK_LABELS[mat] || 'Thickness (in)';
+  // Auto-select weld code based on material
+  const wc = document.getElementById('weld-code');
+  if (mat === 'hardware' || mat === 'studs') wc.value = 'none';
+  initChem();
+  updatePreheat();
+}
 
 function initChem() {
-  const spec = SPECS[document.getElementById('spec-select'].value];
+  const spec = SPECS[document.getElementById('spec-select').value];
+  if (!spec) return;
   ['1','2'].forEach(h => {
     const body = document.getElementById('chem-' + h);
     body.innerHTML = '';
     const vals = h === '1' ? chem1 : chem2;
-    Object.entries(spec.elements).forEach(([e, lim]) => {
+    Object.entries(spec.elements).forEach(([e,lim]) => {
+      const limStr = (lim.min!==null ? lim.min+'-' : '') + (lim.max!==null ? lim.max : '') + (lim.min===null && lim.max!==null ? ' max' : '');
       const tr = document.createElement('tr');
-      const limStr = (lim.min !== null ? lim.min + '-' : '') + (lim.max !== null ? lim.max : '') + (lim.min === null && lim.max !== null ? ' max' : '');
       tr.innerHTML = `<td>${lim.label} (${e})</td><td><input class="chem-in" data-h="${h}" data-e="${e}" value="${vals[e]||''}" placeholder="--" onchange="chkChem('${h}','${e}')"></td><td style="font-size:11px;color:#777">${limStr}</td><td id="st-${h}-${e}" class="st-na">--</td>`;
       body.appendChild(tr);
     });
   });
 }
 
-function chkChem(h, e) {
+function chkChem(h,e) {
   const inp = document.querySelector(`input[data-h="${h}"][data-e="${e}"]`);
   const v = parseFloat(inp.value);
   const cell = document.getElementById(`st-${h}-${e}`);
-  const spec = SPECS[document.getElementById('spec-select'].value];
+  const spec = SPECS[document.getElementById('spec-select').value];
   const lim = spec.elements[e];
-  if (h === '1') chem1[e] = inp.value; else chem2[e] = inp.value;
-  if (isNaN(v)) { cell.className = 'st-na'; cell.textContent = '--'; return; }
+  if (h==='1') chem1[e]=inp.value; else chem2[e]=inp.value;
+  if (isNaN(v)) { cell.className='st-na'; cell.textContent='--'; return; }
   let ok = true;
-  if (lim.min !== null && v < lim.min) ok = false;
-  if (lim.max !== null && v > lim.max) ok = false;
+  if (lim.min!==null && v<lim.min) ok=false;
+  if (lim.max!==null && v>lim.max) ok=false;
   cell.className = ok ? 'st-pass' : 'st-fail';
   cell.textContent = ok ? 'PASS' : 'FAIL';
 }
 
 function calcCE(v) {
   if (!v) return null;
-  const C = +v.C||0, Mn = +v.Mn||0, Cr = +v.Cr||0, Mo = +v.Mo||0, V = +v.V||0, Ni = +v.Ni||0, Cu = +v.Cu||0;
+  const C=+v.C||0,Mn=+v.Mn||0,Cr=+v.Cr||0,Mo=+v.Mo||0,V=+v.V||0,Ni=+v.Ni||0,Cu=+v.Cu||0;
   if (!C && !Mn) return null;
   return (C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15).toFixed(3);
 }
 
-function getPreheat(thick, tbl) {
-  for (const r of tbl) if (thick <= r.t) return r;
-  return tbl[tbl.length-1];
+function getPreheat(t, tbl) { for (const r of tbl) if (t<=r.t) return r; return tbl[tbl.length-1]; }
+
+function isWeathering() {
+  const spec = SPECS[document.getElementById('spec-select').value];
+  return spec && spec.weathering;
+}
+
+function getCategory() {
+  // Category A: A36; Category B: A588, A709-50W, A572-50, A992 (high-strength)
+  const s = document.getElementById('spec-select').value;
+  if (s === 'A36') return 'A';
+  return 'B';
 }
 
 function updatePreheat() {
   const t = parseFloat(document.getElementById('flange-thick').value);
   const note = document.getElementById('preheat-info');
-  if (!t) { note.textContent = 'Enter flange thickness to determine preheat requirements.'; return; }
-  const code = document.getElementById('weld-code').value;
+  const wc = document.getElementById('weld-code').value;
+  if (wc === 'none') { note.textContent = 'Welding code not applicable for this material type.'; return; }
+  if (!t) { note.textContent = 'Enter thickness to determine preheat requirements.'; return; }
   const fcm = document.getElementById('fcm-select').value === 'Y';
+  const cat = getCategory();
   let s = '';
-  if (code === 'D1.1' || code === 'both') { const r = getPreheat(t, D11_PREHEAT); s += `D1.1 (Cat B): Min preheat ${r.p}F (${r.l})\n`; }
-  if (code === 'D1.5' || code === 'both') { const r = getPreheat(t, fcm ? D15_FCM : D15_NONFCM); s += `D1.5 (${fcm?'FCM':'non-FCM'}): Min preheat ${r.p}F (${r.l})`; }
+  if (wc==='D1.1'||wc==='both') {
+    const tbl = cat==='A' ? D11_CAT_A : D11_CAT_B;
+    const r = getPreheat(t, tbl);
+    s += `D1.1 (Cat ${cat}): Min preheat ${r.p}F\n`;
+  }
+  if (wc==='D1.5'||wc==='both') {
+    const r = getPreheat(t, fcm ? D15_FCM : D15_NONFCM);
+    s += `D1.5 (${fcm?'FCM':'non-FCM'}): Min preheat ${r.p}F (${r.l})`;
+  }
   note.textContent = s;
 }
 
 // ===== PDF =====
-async function handleFile(e) { const f = e.target.files[0]; if (f) await loadPDF(f); }
+async function handleFile(e) { const f=e.target.files[0]; if(f) await loadPDF(f); }
 async function loadPDF(file) {
   const r = new FileReader();
   r.onload = async (e) => {
-    pdfDoc = await pdfjsLib.getDocument({data: new Uint8Array(e.target.result)}).promise;
+    pdfDoc = await pdfjsLib.getDocument({data:new Uint8Array(e.target.result)}).promise;
     curPage = 1;
     document.getElementById('page-count').textContent = pdfDoc.numPages;
     document.getElementById('pdf-bar').classList.remove('hidden');
@@ -423,208 +491,185 @@ async function renderPage() {
   const page = await pdfDoc.getPage(curPage);
   const vp = page.getViewport({scale});
   const c = document.getElementById('pdf-canvas');
-  c.width = vp.width; c.height = vp.height;
-  await page.render({canvasContext: c.getContext('2d'), viewport: vp}).promise;
+  c.width=vp.width; c.height=vp.height;
+  await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
   document.getElementById('page-num').textContent = curPage;
-  document.getElementById('zoom-level').textContent = Math.round(scale/1.5*100) + '%';
+  document.getElementById('zoom-level').textContent = Math.round(scale/1.5*100)+'%';
   if (hlVisible) drawHL();
 }
-function prevPage() { if (curPage > 1) { curPage--; renderPage(); } }
-function nextPage() { if (pdfDoc && curPage < pdfDoc.numPages) { curPage++; renderPage(); } }
-function zoomIn() { scale *= 1.2; renderPage(); }
-function zoomOut() { scale /= 1.2; renderPage(); }
+function prevPage() { if(curPage>1){curPage--;renderPage();} }
+function nextPage() { if(pdfDoc&&curPage<pdfDoc.numPages){curPage++;renderPage();} }
+function zoomIn() { scale*=1.2; renderPage(); }
+function zoomOut() { scale/=1.2; renderPage(); }
 
 // ===== HIGHLIGHTS =====
 function drawHL() {
-  const ov = document.getElementById('hl-overlay');
-  ov.innerHTML = '';
-  const c = document.getElementById('pdf-canvas');
-  const wrap = document.getElementById('pdf-wrap');
-  const cr = c.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-  ov.style.left = (cr.left - wr.left + wrap.scrollLeft) + 'px';
-  ov.style.top = (cr.top - wr.top + wrap.scrollTop) + 'px';
-  ov.style.width = c.width + 'px';
-  ov.style.height = c.height + 'px';
-  const act = {};
-  document.querySelectorAll('.hl-chip.active').forEach(c => act[c.dataset.area] = true);
-  if (curPage === 1) {
-    if (act.cert) addHL(50, 50, c.width-100, 120, 'cert', 'Certification');
-    if (act.grade) addHL(50, 180, 300, 40, 'grade', 'Grade/Spec');
+  const ov=document.getElementById('hl-overlay');
+  ov.innerHTML='';
+  const c=document.getElementById('pdf-canvas');
+  const wrap=document.getElementById('pdf-wrap');
+  const cr=c.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
+  ov.style.left=(cr.left-wr.left+wrap.scrollLeft)+'px';
+  ov.style.top=(cr.top-wr.top+wrap.scrollTop)+'px';
+  ov.style.width=c.width+'px'; ov.style.height=c.height+'px';
+  const act={};
+  document.querySelectorAll('.hl-chip.active').forEach(c=>act[c.dataset.area]=true);
+  if (curPage===1) {
+    if(act.cert) addHL(50,50,c.width-100,120,'cert','Certification');
+    if(act.grade) addHL(50,180,300,40,'grade','Grade/Spec');
   }
-  if (curPage >= 2) {
-    if (act.heat) addHL(50, 80, 200, 30, 'heat', 'Heat #');
-    if (act.chem) addHL(c.width*0.55, 150, c.width*0.43, 200, 'chem', 'Chemistry');
-    if (act.cvn) addHL(c.width*0.30, 150, c.width*0.20, 80, 'cvn', 'CVN');
-    if (act.mech) addHL(c.width*0.05, 150, c.width*0.20, 100, 'mech', 'Mechanical');
+  if (curPage>=2) {
+    if(act.heat) addHL(50,80,200,30,'heat','Heat #');
+    if(act.chem) addHL(c.width*0.55,150,c.width*0.43,200,'chem','Chemistry');
+    if(act.cvn) addHL(c.width*0.30,150,c.width*0.20,80,'cvn','CVN');
+    if(act.mech) addHL(c.width*0.05,150,c.width*0.20,100,'mech','Mechanical');
   }
 }
-function addHL(x, y, w, h, type, label) {
-  const ov = document.getElementById('hl-overlay');
-  const b = document.createElement('div');
-  b.className = 'hl-box hl-' + type;
-  b.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
-  const l = document.createElement('div');
-  l.className = 'hl-label';
-  l.textContent = label;
-  b.appendChild(l);
-  ov.appendChild(b);
+function addHL(x,y,w,h,type,label) {
+  const ov=document.getElementById('hl-overlay');
+  const b=document.createElement('div');
+  b.className='hl-box hl-'+type;
+  b.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
+  const l=document.createElement('div');
+  l.className='hl-label'; l.textContent=label;
+  b.appendChild(l); ov.appendChild(b);
 }
-function toggleHighlights() {
-  hlVisible = !hlVisible;
-  document.getElementById('hl-overlay').style.display = hlVisible ? 'block' : 'none';
-}
-document.addEventListener('click', (e) => {
-  if (e.target.classList.contains('hl-chip')) {
-    e.target.classList.toggle('active');
-    if (hlVisible) drawHL();
-  }
-});
+function toggleHighlights() { hlVisible=!hlVisible; document.getElementById('hl-overlay').style.display=hlVisible?'block':'none'; }
+document.addEventListener('click',(e)=>{ if(e.target.classList.contains('hl-chip')){ e.target.classList.toggle('active'); if(hlVisible) drawHL(); } });
 
 // ===== REPORT =====
 function runReport() {
-  const spec = SPECS[document.getElementById('spec-select'].value];
+  const spec = SPECS[document.getElementById('spec-select').value];
   const wc = document.getElementById('weld-code').value;
   const fcm = document.getElementById('fcm-select').value === 'Y';
-  const thick = parseFloat(document.getElementById('flange-thick'].value) || 0.68;
+  const thick = parseFloat(document.getElementById('flange-thick'].value) || 0;
   const zone = parseInt(document.getElementById('cvn-zone').value);
+  const matType = document.getElementById('mat-type').value;
+  const matLabel = document.getElementById('mat-type').options[document.getElementById('mat-type').selectedIndex].text;
   const R = [];
-  let secNum = 1;
+  let sn = 1;
 
-  // Header
   R.push(`<div class="rpt-header-info">
-    <strong>PO Number:</strong> ${document.getElementById('po-number').value || '—'}<br>
-    <strong>Mill:</strong> ${document.getElementById('mill-name').value || '—'}<br>
+    <strong>PO Number:</strong> ${document.getElementById('po-number').value||'—'}<br>
+    <strong>Mill:</strong> ${document.getElementById('mill-name').value||'—'}<br>
+    <strong>Material Type:</strong> ${matLabel}<br>
     <strong>Specification:</strong> ${spec.name}<br>
-    <strong>Type:</strong> ${document.getElementById('beam-type').value || '—'}<br>
-    <strong>Quantity:</strong> ${document.getElementById('quantity').value || '—'}<br>
-    <strong>Welding Code:</strong> ${wc === 'both' ? 'AWS D1.1 & D1.5' : 'AWS ' + wc}<br>
-    <strong>FCM:</strong> ${fcm ? 'Yes' : 'No'} &nbsp; <strong>CVN Zone:</strong> ${zone} &nbsp; <strong>Flange Thickness:</strong> ${thick}"
+    <strong>Size/Designation:</strong> ${document.getElementById('beam-type').value||'—'}<br>
+    <strong>Quantity:</strong> ${document.getElementById('quantity').value||'—'}<br>
+    <strong>Welding Code:</strong> ${wc==='both'?'AWS D1.1 & D1.5':wc==='none'?'N/A':'AWS '+wc}<br>
+    ${thick?`<strong>Thickness:</strong> ${thick}" &nbsp; `:''}<strong>FCM:</strong> ${fcm?'Yes':'No'} &nbsp; <strong>CVN Zone:</strong> ${zone}
   </div>`);
 
-  // 1. Material Spec
+  // 1. Chemistry
   let allPass = true;
-  R.push(`<div class="rpt-section"><h2>${secNum++}. Material Specification Compliance — ${spec.name}</h2>`);
-  R.push(`<h3>Heat 1${document.getElementById('heat1').value ? ' — #' + document.getElementById('heat1').value : ''}</h3>`);
+  R.push(`<div class="rpt-section"><h2>${sn++}. Material Specification Compliance — ${spec.name}</h2>`);
+  R.push(`<h3>Heat 1${document.getElementById('heat1').value?' — #'+document.getElementById('heat1').value:''}</h3>`);
   R.push('<table class="rpt-tbl"><tr><th>Element</th><th>Value %</th><th>Min</th><th>Max</th><th>Status</th></tr>');
-  Object.entries(spec.elements).forEach(([e, lim]) => {
-    const v = parseFloat(chem1[e]);
-    let st = 'N/A', cls = '';
-    if (!isNaN(v)) {
-      st = 'PASS'; cls = 'rpt-pass';
-      if (lim.min !== null && v < lim.min) { st = 'FAIL — Below min'; cls = 'rpt-fail'; allPass = false; }
-      if (lim.max !== null && v > lim.max) { st = 'FAIL — Exceeds max'; cls = 'rpt-fail'; allPass = false; }
-    }
+  Object.entries(spec.elements).forEach(([e,lim]) => {
+    const v=parseFloat(chem1[e]); let st='N/A',cls='';
+    if(!isNaN(v)){ st='PASS';cls='rpt-pass'; if(lim.min!==null&&v<lim.min){st='FAIL — Below min';cls='rpt-fail';allPass=false;} if(lim.max!==null&&v>lim.max){st='FAIL — Exceeds max';cls='rpt-fail';allPass=false;} }
     R.push(`<tr><td>${lim.label} (${e})</td><td>${chem1[e]||'—'}</td><td>${lim.min||'—'}</td><td>${lim.max||'—'}</td><td class="${cls}">${st}</td></tr>`);
   });
   const ce1 = calcCE(chem1);
   if (ce1) R.push(`<tr><td>Carbon Equivalent</td><td>${ce1}</td><td>—</td><td>0.45*</td><td class="${+ce1<=0.45?'rpt-pass':'rpt-warn'}">${+ce1<=0.45?'PASS':'INFO'}</td></tr>`);
   R.push('</table>');
-
-  if (Object.keys(chem2).filter(k => chem2[k]).length > 0) {
-    R.push(`<h3>Heat 2${document.getElementById('heat2').value ? ' — #' + document.getElementById('heat2').value : ''}</h3>`);
+  if (Object.keys(chem2).filter(k=>chem2[k]).length>0) {
+    R.push(`<h3>Heat 2${document.getElementById('heat2').value?' — #'+document.getElementById('heat2').value:''}</h3>`);
     R.push('<table class="rpt-tbl"><tr><th>Element</th><th>Value %</th><th>Min</th><th>Max</th><th>Status</th></tr>');
-    Object.entries(spec.elements).forEach(([e, lim]) => {
-      const v = parseFloat(chem2[e]);
-      let st = 'N/A', cls = '';
-      if (!isNaN(v)) {
-        st = 'PASS'; cls = 'rpt-pass';
-        if (lim.min !== null && v < lim.min) { st = 'FAIL — Below min'; cls = 'rpt-fail'; allPass = false; }
-        if (lim.max !== null && v > lim.max) { st = 'FAIL — Exceeds max'; cls = 'rpt-fail'; allPass = false; }
-      }
+    Object.entries(spec.elements).forEach(([e,lim]) => {
+      const v=parseFloat(chem2[e]); let st='N/A',cls='';
+      if(!isNaN(v)){ st='PASS';cls='rpt-pass'; if(lim.min!==null&&v<lim.min){st='FAIL — Below min';cls='rpt-fail';allPass=false;} if(lim.max!==null&&v>lim.max){st='FAIL — Exceeds max';cls='rpt-fail';allPass=false;} }
       R.push(`<tr><td>${lim.label} (${e})</td><td>${chem2[e]||'—'}</td><td>${lim.min||'—'}</td><td>${lim.max||'—'}</td><td class="${cls}">${st}</td></tr>`);
     });
-    const ce2 = calcCE(chem2);
-    if (ce2) R.push(`<tr><td>Carbon Equivalent</td><td>${ce2}</td><td>—</td><td>0.45*</td><td class="${+ce2<=0.45?'rpt-pass':'rpt-warn'}">${+ce2<=0.45?'PASS':'INFO'}</td></tr>`);
     R.push('</table>');
   }
-  R.push(`<div class="rpt-summary ${allPass?'pass':'fail'}">${allPass ? 'All chemical elements within specification limits.' : 'One or more elements OUT OF SPEC — verify values against original document.'}</div></div>`);
+  R.push(`<div class="rpt-summary ${allPass?'pass':'fail'}">${allPass?'All chemical elements within specification limits.':'One or more elements OUT OF SPEC — verify values against original document.'}</div></div>`);
 
   // 2. D1.1
-  if (wc === 'D1.1' || wc === 'both') {
-    const r11 = getPreheat(thick, D11_PREHEAT);
-    const ce1v = calcCE(chem1);
-    R.push(`<div class="rpt-section"><h2>${secNum++}. AWS D1.1 Cross-Reference</h2>`);
+  if (wc==='D1.1'||wc==='both') {
+    const cat = getCategory();
+    const tbl = cat==='A'?D11_CAT_A:D11_CAT_B;
+    const r11 = getPreheat(thick||0.68, tbl);
+    R.push(`<div class="rpt-section"><h2>${sn++}. AWS D1.1 Cross-Reference</h2>`);
     R.push('<table class="rpt-tbl"><tr><th>Parameter</th><th>Requirement</th><th>Detail</th></tr>');
-    R.push(`<tr><td>Steel Category</td><td>Category B</td><td>Prequalified WPS permitted</td></tr>`);
-    R.push(`<tr><td>Min Preheat</td><td>${r11.p}F (${r11.l})</td><td>Based on ${thick}" thickness</td></tr>`);
-    R.push(`<tr><td>Filler (single pass)</td><td>E7018 / ER70S-6</td><td>Dilution provides weathering</td></tr>`);
-    R.push(`<tr><td>Filler (multi-pass)</td><td>E8018-W or Ni-alloyed</td><td>Weathering chemistry required</td></tr>`);
-    R.push(`<tr><td>Carbon Equivalent (H1)</td><td>${ce1v||'—'}</td><td>${ce1v && +ce1v > 0.45 ? 'Higher preheat may apply (Annex B)' : 'Within normal range'}</td></tr>`);
+    R.push(`<tr><td>Steel Category</td><td>Category ${cat}</td><td>${cat==='A'?'Prequalified WPS':'Prequalified WPS'}</td></tr>`);
+    R.push(`<tr><td>Min Preheat</td><td>${r11.p}F</td><td>Based on ${thick||0.68}" thickness</td></tr>`);
+    if (isWeathering()) {
+      R.push(`<tr><td>Filler (single pass)</td><td>E7018 / ER70S-6</td><td>Dilution provides weathering</td></tr>`);
+      R.push(`<tr><td>Filler (multi-pass)</td><td>E8018-W or Ni-alloyed</td><td>Weathering chemistry required</td></tr>`);
+    } else {
+      R.push(`<tr><td>Filler Metal</td><td>Per D1.1 Table 3.2</td><td>Match to base metal strength</td></tr>`);
+    }
     R.push('</table></div>');
   }
 
   // 3. D1.5
-  if (wc === 'D1.5' || wc === 'both') {
-    const tbl = fcm ? D15_FCM : D15_NONFCM;
-    const r15 = getPreheat(thick, tbl);
+  if (wc==='D1.5'||wc==='both') {
+    const r15 = getPreheat(thick||0.68, fcm?D15_FCM:D15_NONFCM);
     const c1 = parseFloat(chem1.C), ce1v = parseFloat(calcCE(chem1));
-    let qStat = '', qCls = 'rpt-pass';
+    let qStat='',qCls='rpt-pass';
     if (!isNaN(c1)) {
-      if (c1 >= 0.15) qStat = 'C >= 0.15% — Qualifies all grades (36, 50, 50S, 50W)';
-      else if (c1 >= 0.12 && !isNaN(ce1v) && ce1v >= 0.45) qStat = 'CE >= 0.45% & C >= 0.12% — Qualifies all grades';
-      else if (c1 >= 0.12) { qStat = 'C >= 0.12% but CE < 0.45% — Qualifies 50W only'; qCls = 'rpt-warn'; }
-      else { qStat = 'C < 0.12% — WPS qualifies 50W ONLY'; qCls = 'rpt-fail'; }
-    } else qStat = 'Enter carbon value to check';
-
-    const cvnR = fcm ? CVN_FCM[zone] : CVN_REQ[zone];
-    R.push(`<div class="rpt-section"><h2>${secNum++}. AWS D1.5 Cross-Reference</h2>`);
-    R.push(`<p style="font-size:12px;font-family:Arial,sans-serif;margin-bottom:8px;color:#333">Base metal: A709 Gr 50W | ${fcm ? 'FCM' : 'Non-FCM'} | CVN Zone ${zone}</p>`);
+      if (c1>=0.15) qStat='C >= 0.15% — Qualifies all grades (36, 50, 50S, 50W)';
+      else if (c1>=0.12 && !isNaN(ce1v) && ce1v>=0.45) qStat='CE >= 0.45% & C >= 0.12% — Qualifies all grades';
+      else if (c1>=0.12) { qStat='C >= 0.12% but CE < 0.45% — Qualifies 50W only'; qCls='rpt-warn'; }
+      else { qStat='C < 0.12% — WPS qualifies 50W ONLY'; qCls='rpt-fail'; }
+    } else qStat='Enter carbon value to check';
+    const cvnR = fcm?CVN_FCM[zone]:CVN_REQ[zone];
+    R.push(`<div class="rpt-section"><h2>${sn++}. AWS D1.5 Cross-Reference</h2>`);
+    R.push(`<p style="font-size:12px;font-family:Arial,sans-serif;margin-bottom:8px;color:#333">Base metal: A709 Gr 50W | ${fcm?'FCM':'Non-FCM'} | CVN Zone ${zone}</p>`);
     R.push('<table class="rpt-tbl"><tr><th>Parameter</th><th>Requirement</th><th>Detail</th></tr>');
-    R.push(`<tr><td>Min Preheat</td><td>${r15.p}F (${r15.l})</td><td>${fcm?'FCM':'Non-FCM'}, ${thick}"</td></tr>`);
+    R.push(`<tr><td>Min Preheat</td><td>${r15.p}F (${r15.l})</td><td>${fcm?'FCM':'Non-FCM'}, ${thick||0.68}"</td></tr>`);
     R.push(`<tr class="${qCls}"><td>WPS Qualification (Cl 5.4.2)</td><td>${qStat}</td><td>C: ${chem1.C||'—'}% | CE: ${calcCE(chem1)||'—'}</td></tr>`);
-    R.push(`<tr><td>CVN Test Temp</td><td>${cvnR.t}F (Zone ${zone})</td><td>${fcm?'FCM requirements':'Non-FCM'}</td></tr>`);
-    R.push(`<tr><td>CVN Min Energy (avg)</td><td>${cvnR.e} ft-lb</td><td>${fcm?'Min single: '+cvnR.s+' ft-lb':''}</td></tr>`);
-    R.push(`<tr><td>Filler Metal</td><td>Weathering required</td><td>E8018-W, ER80S-Ni1, or equiv.</td></tr>`);
+    R.push(`<tr><td>CVN Test Temp</td><td>${cvnR.t}F (Zone ${zone})</td><td>${fcm?'FCM':'Non-FCM'}</td></tr>`);
+    R.push(`<tr><td>CVN Min Energy</td><td>${cvnR.e} ft-lb avg</td><td>${fcm?'Min single: '+cvnR.s+' ft-lb':''}</td></tr>`);
+    if (isWeathering()) R.push(`<tr><td>Filler Metal</td><td>Weathering required</td><td>E8018-W, ER80S-Ni1, or equiv.</td></tr>`);
     R.push('</table>');
     if (!isNaN(c1)) {
-      let qm = '', qc = 'pass';
-      if (c1 >= 0.15) qm = 'Carbon content qualifies this heat for multi-grade WPS qualification.';
-      else if (c1 >= 0.12 && !isNaN(ce1v) && ce1v >= 0.45) qm = 'CE and carbon qualify this heat for multi-grade WPS qualification.';
-      else if (c1 >= 0.12) { qm = 'Carbon >= 0.12% but CE < 0.45% — WPS limited to 50W only.'; qc = 'warn'; }
-      else { qm = 'Carbon < 0.12% — WPS qualifies 50W ONLY (not 36, 50, 50S).'; qc = 'fail'; }
+      let qm='',qc='pass';
+      if (c1>=0.15) qm='Carbon content qualifies this heat for multi-grade WPS qualification.';
+      else if (c1>=0.12 && !isNaN(ce1v) && ce1v>=0.45) qm='CE and carbon qualify this heat for multi-grade WPS qualification.';
+      else if (c1>=0.12) { qm='Carbon >= 0.12% but CE < 0.45% — WPS limited to 50W only.'; qc='warn'; }
+      else { qm='Carbon < 0.12% — WPS qualifies 50W ONLY (not 36, 50, 50S).'; qc='fail'; }
       R.push(`<div class="rpt-summary ${qc}">${qm}</div>`);
     }
     R.push('</div>');
   }
 
-  // 4. Weathering
-  R.push(`<div class="rpt-section"><h2>${secNum++}. Weathering Steel Verification</h2>`);
-  const cu = parseFloat(chem1.Cu), cr = parseFloat(chem1.Cr), ni = parseFloat(chem1.Ni);
-  let wOK = true;
-  R.push('<table class="rpt-tbl"><tr><th>Element</th><th>Heat 1</th><th>Required</th><th>Status</th></tr>');
-  if (!isNaN(cu)) { const ok = cu >= 0.20; R.push(`<tr><td>Copper (Cu)</td><td>${chem1.Cu}%</td><td>min 0.20%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`); if(!ok) wOK=false; }
-  if (!isNaN(cr)) { const ok = cr >= 0.40 && cr <= 0.70; R.push(`<tr><td>Chromium (Cr)</td><td>${chem1.Cr}%</td><td>0.40-0.70%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`); if(!ok) wOK=false; }
-  if (!isNaN(ni)) { const ok = ni <= 0.50; R.push(`<tr><td>Nickel (Ni)</td><td>${chem1.Ni}%</td><td>max 0.50%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`); if(!ok) wOK=false; }
-  R.push('</table>');
-  R.push(`<div class="rpt-summary ${wOK?'pass':'fail'}">${wOK?'Weathering steel chemistry confirmed — Cu, Cr, Ni within range for atmospheric corrosion resistance.':'Weathering elements missing or out of range — verify Cu, Cr, Ni.'}</div></div>`);
+  // 4. Weathering (if applicable)
+  if (isWeathering()) {
+    R.push(`<div class="rpt-section"><h2>${sn++}. Weathering Steel Verification</h2>`);
+    const cu=parseFloat(chem1.Cu),cr=parseFloat(chem1.Cr),ni=parseFloat(chem1.Ni);
+    let wOK=true;
+    R.push('<table class="rpt-tbl"><tr><th>Element</th><th>Heat 1</th><th>Required</th><th>Status</th></tr>');
+    if(!isNaN(cu)){const ok=cu>=0.20;R.push(`<tr><td>Copper (Cu)</td><td>${chem1.Cu}%</td><td>min 0.20%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`);if(!ok)wOK=false;}
+    if(!isNaN(cr)){const ok=cr>=0.40&&cr<=0.70;R.push(`<tr><td>Chromium (Cr)</td><td>${chem1.Cr}%</td><td>0.40-0.70%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`);if(!ok)wOK=false;}
+    if(!isNaN(ni)){const ok=ni<=0.50;R.push(`<tr><td>Nickel (Ni)</td><td>${chem1.Ni}%</td><td>max 0.50%</td><td class="${ok?'rpt-pass':'rpt-fail'}">${ok?'PASS':'FAIL'}</td></tr>`);if(!ok)wOK=false;}
+    R.push('</table>');
+    R.push(`<div class="rpt-summary ${wOK?'pass':'fail'}">${wOK?'Weathering steel chemistry confirmed — Cu, Cr, Ni within range for atmospheric corrosion resistance.':'Weathering elements missing or out of range — verify Cu, Cr, Ni.'}</div></div>`);
+  }
 
-  // Footer
   R.push(`<div class="rpt-footer">
     * CE limit of 0.45% per A709 for shapes with flange thickness <= 2". A588 does not mandate a CE maximum.<br>
-    ** Preheat values based on ${thick}" flange thickness. Verify from beam tables.<br>
+    ** Preheat values based on ${thick||0.68}" thickness. Verify from material tables.<br>
     *** D1.5 Clause 5.4.2: To qualify WPS for multiple grades using 50W test plate: C >= 0.15% OR (CE >= 0.45% AND C >= 0.12%).<br>
     Report generated: ${new Date().toLocaleString()}
   </div>`);
-
   document.getElementById('report-body').innerHTML = R.join('');
   document.getElementById('report-panel').classList.add('open');
 }
 function closeReport() { document.getElementById('report-panel').classList.remove('open'); }
 
 // ===== EVENTS =====
-document.getElementById('spec-select').addEventListener('change', initChem);
 document.getElementById('weld-code').addEventListener('change', updatePreheat);
 document.getElementById('fcm-select').addEventListener('change', updatePreheat);
 document.getElementById('flange-thick').addEventListener('input', updatePreheat);
+const dz=document.getElementById('drop-zone'), pw=document.getElementById('pdf-wrap');
+['dragenter','dragover'].forEach(ev=>pw.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>pw.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
+pw.addEventListener('drop',async(e)=>{const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')await loadPDF(f);});
 
-const dz = document.getElementById('drop-zone');
-const pw = document.getElementById('pdf-wrap');
-['dragenter','dragover'].forEach(ev => pw.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
-['dragleave','drop'].forEach(ev => pw.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
-pw.addEventListener('drop', async (e) => { const f = e.dataTransfer.files[0]; if (f && f.type === 'application/pdf') await loadPDF(f); });
-
-initChem();
-updatePreheat();
+// INIT
+onMaterialChange();
 </script>
 </body>
 </html>
