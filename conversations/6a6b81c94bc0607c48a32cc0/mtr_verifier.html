@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTR Verifier — D1.1 & D1.5 Compliance</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f1117; --panel: #1a1d29; --border: #2a2e3f; --accent: #3b82f6;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308; --text: #e2e8f0;
+  --muted: #64748b; --highlight: rgba(59,130,246,0.3);
+}
+html, body { width: 100%; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100%; }
+/* TOPBAR */
+#topbar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+#topbar h1 { font-size: 18px; font-weight: 700; }
+#topbar .badge { font-size: 11px; padding: 3px 10px; border-radius: 12px; background: var(--accent); color: #fff; }
+#topbar .spacer { flex: 1; }
+.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.btn:hover { border-color: var(--accent); background: #1e2535; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+/* MAIN LAYOUT */
+#main { display: flex; flex: 1; overflow: hidden; }
+/* SIDEBAR */
+#sidebar { width: 340px; min-width: 340px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-section h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 10px; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.field input, .field select { width: 100%; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 13px; }
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+/* PDF VIEWER */
+#viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; }
+#pdf-toolbar { padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#pdf-canvas-wrap { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 20px; position: relative; }
+#pdf-canvas-wrap canvas { box-shadow: 0 4px 20px rgba(0,0,0,0.4); max-width: 100%; }
+#drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 60px 20px; text-align: center; color: var(--muted); cursor: pointer; transition: all 0.2s; margin: 40px; }
+#drop-zone:hover, #drop-zone.drag { border-color: var(--accent); background: rgba(59,130,246,0.05); color: var(--text); }
+#drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
+#drop-zone p { font-size: 14px; margin-bottom: 4px; }
+#drop-zone .sub { font-size: 12px; color: var(--muted); }
+/* CHEM TABLE */
+.chem-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.chem-table th { text-align: left; padding: 5px 8px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+.chem-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.chem-input { width: 70px; padding: 4px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 12px; text-align: center; }
+.chem-input:focus { outline: none; border-color: var(--accent); }
+.pass { color: var(--green); } .fail { color: var(--red); } .warn { color: var(--yellow); }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.status-dot.pass { background: var(--green); } .status-dot.fail { background: var(--red); } .status-dot.warn { background: var(--yellow); } .status-dot.na { background: var(--muted); }
+/* REPORT */
+#report-panel { position: fixed; top: 0; right: -520px; width: 500px; height: 100%; background: var(--panel); border-left: 1px solid var(--border); transition: right 0.3s; z-index: 100; display: flex; flex-direction: column; }
+#report-panel.open { right: 0; }
+#report-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+#report-content { flex: 1; overflow-y: auto; padding: 16px; }
+.report-section { margin-bottom: 20px; }
+.report-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.report-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 8px; }
+.report-table th { text-align: left; padding: 6px; color: var(--muted); border-bottom: 1px solid var(--border); }
+.report-table td { padding: 6px; border-bottom: 1px solid var(--border); }
+.report-row-pass { color: var(--green); } .report-row-fail { color: var(--red); } .report-row-warn { color: var(--yellow); }
+.report-summary { padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+.report-summary.pass { background: rgba(34,197,94,0.1); border: 1px solid var(--green); }
+.report-summary.fail { background: rgba(239,68,68,0.1); border: 1px solid var(--red); }
+.report-summary.warn { background: rgba(234,179,8,0.1); border: 1px solid var(--yellow); }
+/* HIGHLIGHT OVERLAY */
+.highlight-box { position: absolute; border: 2px solid; border-radius: 3px; pointer-events: none; z-index: 10; }
+.highlight-box.heat { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+.highlight-box.grade { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+.highlight-box.chem { border-color: #eab308; background: rgba(234,179,8,0.08); }
+.highlight-box.cvn { border-color: #a855f7; background: rgba(168,85,247,0.08); }
+.highlight-box.mech { border-color: #06b6d4; background: rgba(6,182,212,0.08); }
+.highlight-box.cert { border-color: #f97316; background: rgba(249,115,22,0.08); }
+.highlight-label { position: absolute; top: -20px; left: 0; font-size: 10px; padding: 2px 6px; border-radius: 3px; color: #fff; white-space: nowrap; font-weight: 600; }
+.highlight-box.heat .highlight-label { background: #3b82f6; }
+.highlight-box.grade .highlight-label { background: #22c55e; }
+.highlight-box.chem .highlight-label { background: #eab308; color: #000; }
+.highlight-box.cvn .highlight-label { background: #a855f7; }
+.highlight-box.mech .highlight-label { background: #06b6d4; }
+.highlight-box.cert .highlight-label { background: #f97316; }
+/* NAV */
+.page-nav { display: flex; gap: 4px; align-items: center; }
+.page-nav span { font-size: 13px; color: var(--muted); padding: 0 4px; }
+/* TOGGLE */
+.toggle-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.toggle-chip { padding: 4px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); background: var(--bg); transition: all 0.15s; }
+.toggle-chip.active { border-color: var(--accent); background: rgba(59,130,246,0.15); color: var(--accent); }
+.toggle-chip .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.hidden { display: none !important; }
+.note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <h1>MTR Verifier</h1>
+    <span class="badge">D1.1 & D1.5</span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="document.getElementById('file-input').click()">Upload MTR</button>
+    <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event)">
+    <button class="btn" id="btn-highlights" onclick="toggleHighlights()" disabled>Toggle Highlights</button>
+    <button class="btn btn-primary" id="btn-report" onclick="runReport()" disabled>Run Compliance Report</button>
+  </div>
+
+  <div id="main">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div class="sidebar-section">
+        <h3>MTR Info</h3>
+        <div class="field"><label>PO Number</label><input id="po-number" placeholder="e.g. 1867667"></div>
+        <div class="field"><label>Mill / Supplier</label><input id="mill-name" placeholder="e.g. Nucor-Yamato"></div>
+        <div class="field"><label>Specification</label>
+          <select id="spec-select">
+            <option value="A588-A709-50W">ASTM A588 Gr B / A709 Gr 50W</option>
+            <option value="A709-50W">ASTM A709 Gr 50W only</option>
+            <option value="A588">ASTM A588 Gr B only</option>
+            <option value="A709-50">ASTM A709 Gr 50</option>
+            <option value="A36">ASTM A36</option>
+            <option value="A572-50">ASTM A572 Gr 50</option>
+            <option value="A992">ASTM A992</option>
+          </select>
+        </div>
+        <div class="field"><label>Type (Beam Designation)</label><input id="beam-type" placeholder="e.g. W24x76"></div>
+        <div class="field"><label>Quantity</label><input id="quantity" placeholder="e.g. 40 ft 0 in"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Heat Number & CVN</h3>
+        <div class="field"><label>Heat #1</label><input id="heat1" placeholder="e.g. 627779"></div>
+        <div class="field"><label>Heat #2 (if applicable)</label><input id="heat2" placeholder="e.g. 627781"></div>
+        <div class="field"><label>CVN Test Temp (°F)</label><input id="cvn-temp" placeholder="e.g. 40" value="40"></div>
+        <div class="field"><label>CVN Zone</label>
+          <select id="cvn-zone"><option value="1">Zone 1 (70°F)</option><option value="2" selected>Zone 2 (40°F)</option><option value="3">Zone 3 (10°F)</option></select>
+        </div>
+        <div class="field"><label>FCM?</label>
+          <select id="fcm-select"><option value="N">No (Non-FCM)</option><option value="Y">Yes (FCM)</option></select>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Chemical Composition — Heat 1</h3>
+        <table class="chem-table" id="chem-table-1">
+          <thead><tr><th>Element</th><th>Value %</th><th>Spec Limit</th><th>Status</th></tr></thead>
+          <tbody id="chem-body-1"></tbody>
+        </table>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Chemical Composition — Heat 2</h3>
+        <table class="chem-table" id="chem-table-2">
+          <thead><tr><th>Element</th><th>Value %</th><th>Spec Limit</th><th>Status</th></tr></thead>
+          <tbody id="chem-body-2"></tbody>
+        </table>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Welding Code Cross-Reference</h3>
+        <div class="field"><label>Welding Code</label>
+          <select id="weld-code"><option value="D1.5">AWS D1.5 (Bridge)</option><option value="D1.1">AWS D1.1 (Structural)</option><option value="both">Both D1.1 & D1.5</option></select>
+        </div>
+        <div class="field"><label>Flange Thickness (in)</label><input id="flange-thick" placeholder="e.g. 0.68"></div>
+        <div class="note" id="preheat-info"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Highlight Areas</h3>
+        <div class="toggle-group" id="highlight-toggles">
+          <span class="toggle-chip active" data-area="heat"><span class="dot" style="background:#3b82f6"></span>Heat #</span>
+          <span class="toggle-chip active" data-area="grade"><span class="dot" style="background:#22c55e"></span>Grade/Spec</span>
+          <span class="toggle-chip active" data-area="chem"><span class="dot" style="background:#eab308"></span>Chemistry</span>
+          <span class="toggle-chip active" data-area="cvn"><span class="dot" style="background:#a855f7"></span>CVN</span>
+          <span class="toggle-chip active" data-area="mech"><span class="dot" style="background:#06b6d4"></span>Mechanical</span>
+          <span class="toggle-chip active" data-area="cert"><span class="dot" style="background:#f97316"></span>Certification</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF VIEWER -->
+    <div id="viewer">
+      <div id="pdf-toolbar" class="hidden">
+        <div class="page-nav">
+          <button class="btn" onclick="prevPage()">◀</button>
+          <span>Page <span id="page-num">1</span> / <span id="page-count">1</span></span>
+          <button class="btn" onclick="nextPage()">▶</button>
+        </div>
+        <div style="flex:1"></div>
+        <button class="btn" onclick="zoomOut()">−</button>
+        <span id="zoom-level">100%</span>
+        <button class="btn" onclick="zoomIn()">+</button>
+      </div>
+      <div id="pdf-canvas-wrap">
+        <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="icon">📄</div>
+          <p>Drop MTR PDF here or click to upload</p>
+          <p class="sub">Scanned or digital PDFs supported</p>
+        </div>
+        <canvas id="pdf-canvas" class="hidden"></canvas>
+        <div id="highlight-overlay" style="position:absolute;pointer-events:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORT PANEL -->
+  <div id="report-panel">
+    <div id="report-header">
+      <h2 style="font-size:16px;font-weight:700;">Compliance Report</h2>
+      <button class="btn" onclick="closeReport()">✕</button>
+    </div>
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ===== SPEC DATABASES =====
+const SPECS = {
+  'A588-A709-50W': {
+    name: 'ASTM A588 Gr B / A709 Gr 50W',
+    elements: {
+      C:    { min: null, max: 0.19, label: 'Carbon' },
+      Mn:   { min: 0.80, max: 1.25, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: 0.15, max: 0.40, label: 'Silicon' },
+      Cu:   { min: 0.20, max: 0.50, label: 'Copper' },
+      Ni:   { min: null, max: 0.50, label: 'Nickel' },
+      Cr:   { min: 0.40, max: 0.70, label: 'Chromium' },
+      V:    { min: 0.01, max: 0.10, label: 'Vanadium' },
+      Mo:   { min: null, max: 0.06, label: 'Molybdenum' },
+      Nb:   { min: null, max: 0.03, label: 'Niobium' },
+      B:    { min: null, max: 0.006, label: 'Boron' }
+    },
+    yieldMin: 50, tensileMin: 70, tensileMax: null, elongMin: 18
+  },
+  'A709-50W': {
+    name: 'ASTM A709 Gr 50W',
+    elements: {
+      C:    { min: null, max: 0.19, label: 'Carbon' },
+      Mn:   { min: 0.80, max: 1.25, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: 0.15, max: 0.40, label: 'Silicon' },
+      Cu:   { min: 0.20, max: 0.50, label: 'Copper' },
+      Ni:   { min: null, max: 0.50, label: 'Nickel' },
+      Cr:   { min: 0.40, max: 0.70, label: 'Chromium' },
+      V:    { min: 0.01, max: 0.10, label: 'Vanadium' },
+      Mo:   { min: null, max: 0.06, label: 'Molybdenum' },
+      Nb:   { min: null, max: 0.03, label: 'Niobium' },
+      B:    { min: null, max: 0.006, label: 'Boron' }
+    },
+    yieldMin: 50, tensileMin: 70, tensileMax: null, elongMin: 18
+  },
+  'A588': {
+    name: 'ASTM A588 Gr B',
+    elements: {
+      C:    { min: null, max: 0.20, label: 'Carbon' },
+      Mn:   { min: 0.75, max: 1.35, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: 0.15, max: 0.50, label: 'Silicon' },
+      Cu:   { min: 0.20, max: 0.50, label: 'Copper' },
+      Ni:   { min: null, max: 0.50, label: 'Nickel' },
+      Cr:   { min: 0.40, max: 0.70, label: 'Chromium' },
+      V:    { min: 0.01, max: 0.10, label: 'Vanadium' }
+    },
+    yieldMin: 50, tensileMin: 70, tensileMax: null, elongMin: 18
+  },
+  'A709-50': {
+    name: 'ASTM A709 Gr 50',
+    elements: {
+      C:    { min: null, max: 0.23, label: 'Carbon' },
+      Mn:   { min: null, max: 1.35, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: null, max: 0.40, label: 'Silicon' }
+    },
+    yieldMin: 50, tensileMin: 65, tensileMax: null, elongMin: 18
+  },
+  'A36': {
+    name: 'ASTM A36',
+    elements: {
+      C:    { min: null, max: 0.26, label: 'Carbon' },
+      Mn:   { min: null, max: 1.20, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: null, max: 0.40, label: 'Silicon' },
+      Cu:   { min: 0.20, max: null, label: 'Copper (min when specified)' }
+    },
+    yieldMin: 36, tensileMin: 58, tensileMax: 80, elongMin: 20
+  },
+  'A572-50': {
+    name: 'ASTM A572 Gr 50',
+    elements: {
+      C:    { min: null, max: 0.23, label: 'Carbon' },
+      Mn:   { min: null, max: 1.35, label: 'Manganese' },
+      P:    { min: null, max: 0.040, label: 'Phosphorus' },
+      S:    { min: null, max: 0.050, label: 'Sulfur' },
+      Si:   { min: null, max: 0.40, label: 'Silicon' }
+    },
+    yieldMin: 50, tensileMin: 65, tensileMax: null, elongMin: 18
+  },
+  'A992': {
+    name: 'ASTM A992',
+    elements: {
+      C:    { min: null, max: 0.23, label: 'Carbon' },
+      Mn:   { min: null, max: 1.35, label: 'Manganese' },
+      P:    { min: null, max: 0.025, label: 'Phosphorus' },
+      S:    { min: null, max: 0.035, label: 'Sulfur' },
+      Si:   { min: null, max: 0.40, label: 'Silicon' },
+      Cu:   { min: null, max: 0.60, label: 'Copper' },
+      Ni:   { min: null, max: 0.45, label: 'Nickel' },
+      Cr:   { min: null, max: 0.35, label: 'Chromium' },
+      Mo:   { min: null, max: 0.15, label: 'Molybdenum' },
+      V:    { min: null, max: 0.05, label: 'Vanadium' },
+      Nb:   { min: null, max: 0.05, label: 'Niobium' }
+    },
+    yieldMin: 50, tensileMin: 65, tensileMax: null, elongMin: 18
+  }
+};
+
+// ===== D1.1 PREHEAT TABLE (Category B - A588/A709 50W) =====
+const D11_PREHEAT = [
+  { maxThick: 0.125, preheat: 32, label: 'Up to 1/8"' },
+  { maxThick: 0.25,  preheat: 32, label: 'Over 1/8" to 1/4"' },
+  { maxThick: 0.5,   preheat: 50, label: 'Over 1/4" to 1/2"' },
+  { maxThick: 0.75,  preheat: 50, label: 'Over 1/2" to 3/4"' },
+  { maxThick: 1.5,   preheat: 150, label: 'Over 3/4" to 1-1/2"' },
+  { maxThick: 2.5,   preheat: 225, label: 'Over 1-1/2" to 2-1/2"' },
+  { maxThick: 999,   preheat: 300, label: 'Over 2-1/2"' }
+];
+
+// ===== D1.5 PREHEAT TABLE (Non-FCM, A709 50W) =====
+const D15_PREHEAT_NONFCM = [
+  { maxThick: 0.75,  preheat: 70, label: 'Up to 3/4"' },
+  { maxThick: 1.5,   preheat: 70, label: 'Over 3/4" to 1-1/2"' },
+  { maxThick: 2.5,   preheat: 150, label: 'Over 1-1/2" to 2-1/2"' },
+  { maxThick: 999,   preheat: 200, label: 'Over 2-1/2"' }
+];
+
+// ===== D1.5 PREHEAT TABLE (FCM, A709 50W) =====
+const D15_PREHEAT_FCM = [
+  { maxThick: 0.375, preheat: 70, label: 'Up to 3/8"' },
+  { maxThick: 0.75,  preheat: 100, label: 'Over 3/8" to 3/4"' },
+  { maxThick: 1.5,   preheat: 150, label: 'Over 3/4" to 1-1/2"' },
+  { maxThick: 2.5,   preheat: 200, label: 'Over 1-1/2" to 2-1/2"' },
+  { maxThick: 999,   preheat: 300, label: 'Over 2-1/2"' }
+];
+
+// ===== CVN REQUIREMENTS (A709) =====
+const CVN_REQUIREMENTS = {
+  1: { temp: 70, minEnergy: 15, label: 'Zone 1 (70°F)' },
+  2: { temp: 40, minEnergy: 15, label: 'Zone 2 (40°F)' },
+  3: { temp: 10, minEnergy: 15, label: 'Zone 3 (10°F)' }
+};
+const CVN_FCM_REQUIREMENTS = {
+  1: { temp: 70, minEnergy: 25, minSingle: 20, label: 'Zone 1 FCM (70°F)' },
+  2: { temp: 40, minEnergy: 25, minSingle: 20, label: 'Zone 2 FCM (40°F)' },
+  3: { temp: 10, minEnergy: 25, minSingle: 20, label: 'Zone 3 FCM (10°F)' }
+};
+
+// ===== STATE =====
+let pdfDoc = null, currentPage = 1, pageNum = 1, scale = 1.5, highlightsVisible = true;
+let chemValues1 = {}, chemValues2 = {};
+
+// ===== INIT CHEM TABLES =====
+function initChemTables() {
+  const spec = SPECS[document.getElementById('spec-select'].value];
+  ['1','2'].forEach(heatNum => {
+    const body = document.getElementById('chem-body-' + heatNum);
+    body.innerHTML = '';
+    const vals = heatNum === '1' ? chemValues1 : chemValues2;
+    Object.entries(spec.elements).forEach(([elem, limits]) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${limits.label} (${elem})</td>
+        <td><input class="chem-input" data-heat="${heatNum}" data-elem="${elem}" value="${vals[elem]||''}" placeholder="—" onchange="checkChem('${heatNum}','${elem}')"></td>
+        <td style="font-size:11px;color:var(--muted)">${limits.min!==null?limits.min+'–':''}${limits.max!=='' ? limits.max : ''}${limits.min===null?' max':''}</td>
+        <td id="status-${heatNum}-${elem}"><span class="status-dot na"></span></td>
+      `;
+      body.appendChild(tr);
+    });
+  });
+}
+
+function checkChem(heatNum, elem) {
+  const input = document.querySelector(`input[data-heat="${heatNum}"][data-elem="${elem}"]`);
+  const val = parseFloat(input.value);
+  const statusCell = document.getElementById(`status-${heatNum}-${elem}`);
+  const spec = SPECS[document.getElementById('spec-select'].value];
+  const limits = spec.elements[elem];
+  
+  if (heatNum === '1') chemValues1[elem] = input.value;
+  else chemValues2[elem] = input.value;
+  
+  if (isNaN(val)) {
+    statusCell.innerHTML = '<span class="status-dot na"></span>';
+    return;
+  }
+  let pass = true;
+  if (limits.min !== null && val < limits.min) pass = false;
+  if (limits.max !== null && val > limits.max) pass = false;
+  
+  statusCell.innerHTML = `<span class="status-dot ${pass?'pass':'fail'}"></span>${pass?'PASS':'FAIL'}`;
+  statusCell.className = pass ? 'pass' : 'fail';
+}
+
+// ===== CE CALCULATION =====
+function calcCE(v) {
+  if (!v) return null;
+  const C = parseFloat(v.C) || 0;
+  const Mn = parseFloat(v.Mn) || 0;
+  const Cr = parseFloat(v.Cr) || 0;
+  const Mo = parseFloat(v.Mo) || 0;
+  const V = parseFloat(v.V) || 0;
+  const Ni = parseFloat(v.Ni) || 0;
+  const Cu = parseFloat(v.Cu) || 0;
+  if (C === 0 && Mn === 0) return null;
+  return (C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15).toFixed(3);
+}
+
+// ===== PREHEAT LOOKUP =====
+function getPreheat(thick, table) {
+  for (const row of table) {
+    if (thick <= row.maxThick) return row;
+  }
+  return table[table.length-1];
+}
+
+function updatePreheatInfo() {
+  const thick = parseFloat(document.getElementById('flange-thick').value);
+  if (!thick) { document.getElementById('preheat-info').textContent = 'Enter flange thickness for preheat requirements.'; return; }
+  const code = document.getElementById('weld-code').value;
+  const fcm = document.getElementById('fcm-select').value === 'Y';
+  let info = '';
+  
+  if (code === 'D1.1' || code === 'both') {
+    const r = getPreheat(thick, D11_PREHEAT);
+    info += `D1.1 (Cat B): Min preheat ${r.preheat}°F — ${r.label}\n`;
+  }
+  if (code === 'D1.5' || code === 'both') {
+    const table = fcm ? D15_PREHEAT_FCM : D15_PREHEAT_NONFCM;
+    const r = getPreheat(thick, table);
+    info += `D1.5 (${fcm?'FCM':'non-FCM'}): Min preheat ${r.preheat}°F — ${r.label}\n`;
+  }
+  document.getElementById('preheat-info').textContent = info;
+}
+
+// ===== PDF HANDLING =====
+async function handleFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  await loadPDF(file);
+}
+
+async function loadPDF(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    pdfDoc = await pdfjsLib.getDocument({data}).promise;
+    currentPage = 1;
+    document.getElementById('page-count').textContent = pdfDoc.numPages;
+    document.getElementById('pdf-toolbar').classList.remove('hidden');
+    document.getElementById('drop-zone').classList.add('hidden');
+    document.getElementById('pdf-canvas').classList.remove('hidden');
+    document.getElementById('btn-highlights').disabled = false;
+    document.getElementById('btn-report').disabled = false;
+    await renderPage();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function renderPage() {
+  if (!pdfDoc) return;
+  const page = await pdfDoc.getPage(currentPage);
+  const viewport = page.getViewport({scale});
+  const canvas = document.getElementById('pdf-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({canvasContext: ctx, viewport}).promise;
+  document.getElementById('page-num').textContent = currentPage;
+  document.getElementById('zoom-level').textContent = Math.round(scale/1.5*100) + '%';
+  // Re-apply highlights
+  if (highlightsVisible) drawHighlights();
+}
+
+function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); } }
+function nextPage() { if (pdfDoc && currentPage < pdfDoc.numPages) { currentPage++; renderPage(); } }
+function zoomIn() { scale *= 1.2; renderPage(); }
+function zoomOut() { scale /= 1.2; renderPage(); }
+
+// ===== HIGHLIGHTS =====
+function drawHighlights() {
+  const overlay = document.getElementById('highlight-overlay');
+  overlay.innerHTML = '';
+  const canvas = document.getElementById('pdf-canvas');
+  const canvasWrap = document.getElementById('pdf-canvas-wrap');
+  const rect = canvas.getBoundingClientRect();
+  const wrapRect = canvasWrap.getBoundingClientRect();
+  overlay.style.left = (rect.left - wrapRect.left + canvasWrap.scrollLeft) + 'px';
+  overlay.style.top = (rect.top - wrapRect.top + canvasWrap.scrollTop) + 'px';
+  overlay.style.width = canvas.width + 'px';
+  overlay.style.height = canvas.height + 'px';
+  
+  const activeAreas = {};
+  document.querySelectorAll('.toggle-chip.active').forEach(c => { activeAreas[c.dataset.area] = true; });
+  
+  // Auto-detect areas based on text search (simplified — user can drag to adjust)
+  // For now, show placeholder boxes the user can position
+  if (currentPage === 1) {
+    // Page 1: typically cert header, mill info, PO
+    if (activeAreas.cert) addHighlight(50, 50, canvas.width-100, 120, 'cert', 'Certification Statement');
+    if (activeAreas.grade) addHighlight(50, 180, 300, 40, 'grade', 'Grade/Spec');
+  }
+  if (currentPage >= 2) {
+    // Data pages: heat numbers, chemistry, CVN, mechanical
+    if (activeAreas.heat) addHighlight(50, 80, 200, 30, 'heat', 'Heat Number');
+    if (activeAreas.chem) addHighlight(canvas.width*0.55, 150, canvas.width*0.43, 200, 'chem', 'Chemical Composition');
+    if (activeAreas.cvn) addHighlight(canvas.width*0.30, 150, canvas.width*0.20, 80, 'cvn', 'CVN / Charpy');
+    if (activeAreas.mech) addHighlight(canvas.width*0.05, 150, canvas.width*0.20, 100, 'mech', 'Mechanical Properties');
+  }
+}
+
+function addHighlight(x, y, w, h, type, label) {
+  const overlay = document.getElementById('highlight-overlay');
+  const box = document.createElement('div');
+  box.className = 'highlight-box ' + type;
+  box.style.left = x + 'px';
+  box.style.top = y + 'px';
+  box.style.width = w + 'px';
+  box.style.height = h + 'px';
+  const lbl = document.createElement('div');
+  lbl.className = 'highlight-label';
+  lbl.textContent = label;
+  box.appendChild(lbl);
+  overlay.appendChild(box);
+}
+
+function toggleHighlights() {
+  highlightsVisible = !highlightsVisible;
+  document.getElementById('highlight-overlay').style.display = highlightsVisible ? 'block' : 'none';
+}
+
+// ===== TOGGLE CHIPS =====
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('toggle-chip')) {
+    e.target.classList.toggle('active');
+    if (highlightsVisible) drawHighlights();
+  }
+});
+
+// ===== COMPLIANCE REPORT =====
+function runReport() {
+  const spec = SPECS[document.getElementById('spec-select'].value];
+  const weldCode = document.getElementById('weld-code').value;
+  const fcm = document.getElementById('fcm-select').value === 'Y';
+  const thick = parseFloat(document.getElementById('flange-thick'].value) || 0.68;
+  const cvnZone = parseInt(document.getElementById('cvn-zone').value);
+  const report = [];
+  
+  // === SECTION 1: Material Specification ===
+  report.push('<div class="report-section"><h2>1. Material Specification Compliance</h2>');
+  report.push(`<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Specification: ${spec.name}</p>`);
+  
+  let allPass = true;
+  // Heat 1
+  report.push('<h3 style="font-size:13px;margin:8px 0 4px">Heat 1' + (document.getElementById('heat1').value ? ' — #' + document.getElementById('heat1').value : '') + '</h3>');
+  report.push('<table class="report-table"><tr><th>Element</th><th>Value %</th><th>Min</th><th>Max</th><th>Status</th></tr>');
+  Object.entries(spec.elements).forEach(([elem, limits]) => {
+    const val = parseFloat(chemValues1[elem]);
+    let status = 'N/A', cls = 'warn';
+    if (!isNaN(val)) {
+      status = 'PASS'; cls = 'report-row-pass';
+      if (limits.min !== null && val < limits.min) { status = 'FAIL — Below minimum'; cls = 'report-row-fail'; allPass = false; }
+      if (limits.max !== null && val > limits.max) { status = 'FAIL — Exceeds maximum'; cls = 'report-row-fail'; allPass = false; }
+    } else { cls = ''; }
+    report.push(`<tr class="${cls}"><td>${limits.label} (${elem})</td><td>${chemValues1[elem]||'—'}</td><td>${limits.min||'—'}</td><td>${limits.max||'—'}</td><td>${status}</td></tr>`);
+  });
+  // CE
+  const ce1 = calcCE(chemValues1);
+  if (ce1) report.push(`<tr><td>Carbon Equivalent (CE)</td><td>${ce1}</td><td>—</td><td>0.45¹</td><td>${parseFloat(ce1)<=0.45?'<span class="pass">PASS</span>':'<span class="warn">INFO</span>'}</td></tr>`);
+  report.push('</table>');
+  
+  // Heat 2
+  if (Object.keys(chemValues2).length > 0) {
+    report.push('<h3 style="font-size:13px;margin:8px 0 4px">Heat 2' + (document.getElementById('heat2').value ? ' — #' + document.getElementById('heat2').value : '') + '</h3>');
+    report.push('<table class="report-table"><tr><th>Element</th><th>Value %</th><th>Min</th><th>Max</th><th>Status</th></tr>');
+    Object.entries(spec.elements).forEach(([elem, limits]) => {
+      const val = parseFloat(chemValues2[elem]);
+      let status = 'N/A', cls = 'warn';
+      if (!isNaN(val)) {
+        status = 'PASS'; cls = 'report-row-pass';
+        if (limits.min !== null && val < limits.min) { status = 'FAIL — Below minimum'; cls = 'report-row-fail'; allPass = false; }
+        if (limits.max !== null && val > limits.max) { status = 'FAIL — Exceeds maximum'; cls = 'report-row-fail'; allPass = false; }
+      } else { cls = ''; }
+      report.push(`<tr class="${cls}"><td>${limits.label} (${elem})</td><td>${chemValues2[elem]||'—'}</td><td>${limits.min||'—'}</td><td>${limits.max||'—'}</td><td>${status}</td></tr>`);
+    });
+    const ce2 = calcCE(chemValues2);
+    if (ce2) report.push(`<tr><td>Carbon Equivalent (CE)</td><td>${ce2}</td><td>—</td><td>0.45¹</td><td>${parseFloat(ce2)<=0.45?'<span class="pass">PASS</span>':'<span class="warn">INFO</span>'}</td></tr>`);
+    report.push('</table>');
+  }
+  
+  report.push(`<div class="report-summary ${allPass?'pass':'fail'}">${allPass?'✓ All chemical elements within specification limits':'✗ One or more elements OUT OF SPEC — verify values against original document'}</div>`);
+  report.push('</div>');
+  
+  // === SECTION 2: D1.1 Cross-Reference ===
+  if (weldCode === 'D1.1' || weldCode === 'both') {
+    report.push('<div class="report-section"><h2>2. AWS D1.1 Cross-Reference</h2>');
+    report.push(`<p style="font-size:12px;color:var(--muted);margin-bottom:8px">A588/A709 50W = Category B steel</p>`);
+    
+    // Preheat
+    const r11 = getPreheat(thick, D11_PREHEAT);
+    report.push(`<table class="report-table"><tr><th>Parameter</th><th>Requirement</th><th>Detail</th></tr>`);
+    report.push(`<tr><td>Steel Category</td><td>Category B</td><td>Prequalified WPS allowed</td></tr>`);
+    report.push(`<tr><td>Min Preheat (${r11.label})</td><td>${r11.preheat}°F</td><td>Based on ${thick}" thickness</td></tr>`);
+    report.push(`<tr><td>Filler Metal (single pass)</td><td>E7018 / ER70S-6</td><td>Base metal dilution provides weathering</td></tr>`);
+    report.push(`<tr><td>Filler Metal (multi-pass)</td><td>E8018-W or Ni-alloyed</td><td>Required for weathering chemistry</td></tr>`);
+    const ce1d11 = calcCE(chemValues1);
+    report.push(`<tr><td>Carbon Equivalent (Heat 1)</td><td>${ce1d11||'—'}</td><td>${ce1d11 && parseFloat(ce1d11) > 0.45 ? 'Higher preheat may be needed (Annex B)' : 'Within normal range'}</td></tr>`);
+    report.push(`</table>`);
+    report.push('</div>');
+  }
+  
+  // === SECTION 3: D1.5 Cross-Reference ===
+  if (weldCode === 'D1.5' || weldCode === 'both') {
+    report.push('<div class="report-section"><h2>${weldCode==='both'?'3':'2'}. AWS D1.5 Cross-Reference</h2>');
+    report.push(`<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Base metal: A709 Gr 50W | ${fcm?'FCM':'Non-FCM'} | CVN Zone ${cvnZone}</p>`);
+    
+    const d15table = fcm ? D15_PREHEAT_FCM : D15_PREHEAT_NONFCM;
+    const r15 = getPreheat(thick, d15table);
+    
+    report.push(`<table class="report-table"><tr><th>Parameter</th><th>Requirement</th><th>Detail</th></tr>`);
+    report.push(`<tr><td>Min Preheat (${r15.label})</td><td>${r15.preheat}°F</td><td>${fcm?'FCM':'Non-FCM'}, ${thick}" thick</td></tr>`);
+    
+    // D1.5 Clause 5.4.2 — Carbon check
+    const c1 = parseFloat(chemValues1.C);
+    const ce1d15 = parseFloat(calcCE(chemValues1));
+    let qualStatus = '', qualClass = 'report-row-pass';
+    if (!isNaN(c1)) {
+      if (c1 >= 0.15) { qualStatus = 'C ≥ 0.15% — Qualifies WPS for all grades (36, 50, 50S, 50W)'; }
+      else if (c1 >= 0.12 && !isNaN(ce1d15) && ce1d15 >= 0.45) { qualStatus = 'CE ≥ 0.45% & C ≥ 0.12% — Qualifies all grades'; }
+      else if (c1 >= 0.12) { qualStatus = 'C ≥ 0.12% but CE < 0.45% — Qualifies 50W only unless CE met'; qualClass = 'report-row-warn'; }
+      else { qualStatus = 'C < 0.12% — WPS qualifies 50W ONLY (not 36, 50, 50S)'; qualClass = 'report-row-fail'; }
+    } else { qualStatus = 'Enter carbon value to check'; qualClass = ''; }
+    report.push(`<tr class="${qualClass}"><td>WPS Qualification (Cl. 5.4.2)</td><td>${qualStatus}</td><td>Carbon: ${chemValues1.C||'—'}% | CE: ${calcCE(chemValues1)||'—'}</td></tr>`);
+    
+    // CVN
+    const cvnReq = fcm ? CVN_FCM_REQUIREMENTS[cvnZone] : CVN_REQUIREMENTS[cvnZone];
+    report.push(`<tr><td>CVN Test Temperature</td><td>${cvnReq.temp}°F (Zone ${cvnZone})</td><td>${fcm?'FCM requirements apply':'Non-FCM'}</td></tr>`);
+    report.push(`<tr><td>CVN Min Energy (avg)</td><td>${cvnReq.minEnergy} ft-lb</td><td>${fcm?'Min single: ' + CVN_FCM_REQUIREMENTS[cvnZone].minSingle + ' ft-lb':''}</td></tr>`);
+    report.push(`<tr><td>Filler Metal</td><td>Weathering required</td><td>E8018-W, ER80S-Ni1, or equivalent</td></tr>`);
+    report.push(`</table>`);
+    
+    // Carbon qualification summary
+    if (!isNaN(c1)) {
+      let qualMsg = '', qualCls = 'pass';
+      if (c1 >= 0.15) { qualMsg = '✓ Carbon content qualifies this heat for multi-grade WPS qualification under D1.5'; }
+      else if (c1 >= 0.12 && !isNaN(ce1d15) && ce1d15 >= 0.45) { qualMsg = '✓ CE and carbon qualify this heat for multi-grade WPS qualification'; }
+      else if (c1 >= 0.12) { qualMsg = '⚠ Carbon ≥ 0.12% but CE < 0.45% — WPS limited to 50W only'; qualCls = 'warn'; }
+      else { qualMsg = '✗ Carbon < 0.12% — WPS qualifies 50W ONLY (not 36, 50, 50S)'; qualCls = 'fail'; }
+      report.push(`<div class="report-summary ${qualCls}">${qualMsg}</div>`);
+    }
+    report.push('</div>');
+  }
+  
+  // === SECTION 4: Weathering Steel Check ===
+  report.push('<div class="report-section"><h2>${weldCode==='both'?'4':(weldCode==='D1.5'?'3':'3')}. Weathering Steel Verification</h2>');
+  const cu1 = parseFloat(chemValues1.Cu), cr1 = parseFloat(chemValues1.Cr), ni1 = parseFloat(chemValues1.Ni);
+  let weatherOK = true;
+  report.push('<table class="report-table"><tr><th>Element</th><th>Heat 1</th><th>Required For Weathering</th><th>Status</th></tr>');
+  if (!isNaN(cu1)) { report.push(`<tr class="${cu1>=0.20?'report-row-pass':'report-row-fail'}"><td>Copper (Cu)</td><td>${chemValues1.Cu}%</td><td>min 0.20%</td><td>${cu1>=0.20?'PASS':'FAIL'}</td></tr>`); if(cu1<0.20) weatherOK=false; }
+  if (!isNaN(cr1)) { report.push(`<tr class="${cr1>=0.40?'report-row-pass':'report-row-fail'}"><td>Chromium (Cr)</td><td>${chemValues1.Cr}%</td><td>0.40–0.70%</td><td>${cr1>=0.40&&cr1<=0.70?'PASS':'FAIL'}</td></tr>`); if(cr1<0.40||cr1>0.70) weatherOK=false; }
+  if (!isNaN(ni1)) { report.push(`<tr class="${ni1<=0.50?'report-row-pass':'report-row-fail'}"><td>Nickel (Ni)</td><td>${chemValues1.Ni}%</td><td>max 0.50%</td><td>${ni1<=0.50?'PASS':'FAIL'}</td></tr>`); if(ni1>0.50) weatherOK=false; }
+  report.push(`</table>`);
+  report.push(`<div class="report-summary ${weatherOK?'pass':'fail'}">${weatherOK?'✓ Weathering steel chemistry confirmed — Cu, Cr, Ni within range for A588/A709 50W atmospheric corrosion resistance':'✗ Weathering elements missing or out of range — verify Cu, Cr, Ni values'}</div>`);
+  report.push('</div>');
+  
+  // === FOOTER ===
+  report.push(`<div style="margin-top:20px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
+    <p>¹ CE limit of 0.45% is per A709 for shapes with flange thickness ≤ 2". For informational purposes — A588 does not mandate a CE max.</p>
+    <p>² Preheat values based on ${thick}" flange thickness. Verify actual thickness from beam tables.</p>
+    <p>³ D1.5 Clause 5.4.2: To qualify WPS for multiple grades using 50W test plate, C ≥ 0.15% OR (CE ≥ 0.45% AND C ≥ 0.12%).</p>
+    <p>Report generated: ${new Date().toLocaleString()}</p>
+  </div>`);
+  
+  document.getElementById('report-content').innerHTML = report.join('');
+  document.getElementById('report-panel').classList.add('open');
+}
+
+function closeReport() { document.getElementById('report-panel').classList.remove('open'); }
+
+// ===== EVENT LISTENERS =====
+document.getElementById('spec-select').addEventListener('change', initChemTables);
+document.getElementById('weld-code').addEventListener('change', updatePreheatInfo);
+document.getElementById('fcm-select').addEventListener('change', updatePreheatInfo);
+document.getElementById('flange-thick').addEventListener('input', updatePreheatInfo);
+
+// Drag and drop
+const dropZone = document.getElementById('drop-zone');
+const pdfWrap = document.getElementById('pdf-canvas-wrap');
+['dragenter','dragover'].forEach(ev => pdfWrap.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => pdfWrap.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
+pdfWrap.addEventListener('drop', async (e) => {
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') await loadPDF(file);
+});
+
+// INIT
+initChemTables();
+updatePreheatInfo();
+</script>
+</body>
+</html>
