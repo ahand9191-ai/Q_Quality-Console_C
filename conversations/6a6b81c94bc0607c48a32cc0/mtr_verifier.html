@@ -243,6 +243,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -587,17 +588,32 @@ async function ensurePageContent(pageNum) {
 }
 
 function getPixelWords(pageNum, viewport) {
-  // For text-based PDFs: extract word positions from pdf.js text items
   var cache = pageContentCache[pageNum];
-  if (!cache || cache.type !== 'text') return [];
+  if (!cache) return [];
   var words = [];
-  cache.items.forEach(function(item) {
-    if (!item.str || !item.str.trim()) return;
-    var tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-    var fontHeight = Math.hypot(tx[2], tx[3]) || 10;
-    var width = Math.abs(item.width * viewport.scale) || (item.str.length * fontHeight * 0.5);
-    words.push({ str: item.str, x: tx[4], y: tx[5] - fontHeight, w: width, h: fontHeight });
-  });
+  if (cache.type === 'text') {
+    cache.items.forEach(function(item) {
+      if (!item.str || !item.str.trim()) return;
+      var tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      var fontHeight = Math.hypot(tx[2], tx[3]) || 10;
+      var width = Math.abs(item.width * viewport.scale) || (item.str.length * fontHeight * 0.5);
+      words.push({ str: item.str, x: tx[4], y: tx[5] - fontHeight, w: width, h: fontHeight });
+    });
+  } else if (cache.type === 'ocr' && cache.words && cache.words.length) {
+    // OCR words are in the OCR-render canvas pixel space — scale to current viewport pixel space
+    var rx = viewport.width / cache.canvasW;
+    var ry = viewport.height / cache.canvasH;
+    cache.words.forEach(function(w) {
+      if (!w.str || !w.str.trim()) return;
+      words.push({
+        str: w.str,
+        x: w.x0 * rx,
+        y: w.y0 * ry,
+        w: (w.x1 - w.x0) * rx,
+        h: (w.y1 - w.y0) * ry
+      });
+    });
+  }
   return words;
 }
 
@@ -631,68 +647,171 @@ async function extractMtrData() {
   var area = document.getElementById('extract-area');
   var allText = '';
   var isScanned = false;
-  for (var i = 1; i <= Math.min(pdfDoc.numPages, 5); i++) {
-    area.innerHTML = '<div class="extract-status">Reading page ' + i + '...</div>';
+  var numPages = Math.min(pdfDoc.numPages, 5);
+
+  for (var i = 1; i <= numPages; i++) {
+    area.innerHTML = '<div class="extract-status">Reading page ' + i + ' of ' + numPages + '...</div>';
     try {
       var page = await pdfDoc.getPage(i);
       var tc = await page.getTextContent();
       var pageText = tc.items.map(function(it) { return it.str; }).join(' ');
-      if (pageText.trim().length < 15) { isScanned = true; }
-      allText += pageText + '\n';
-      pageContentCache[i] = { type: pageText.trim().length >= 15 ? 'text' : 'scanned', items: tc.items };
-    } catch(err) { isScanned = true; }
+      // A real digital MTR has dense text (dozens of fields/numbers). A scanned MTR with only a
+      // small digital "REVIEWED" stamp overlay will have very little actual text — treat that as scanned.
+      var wordCount = pageText.trim().split(/\s+/).filter(Boolean).length;
+      if (pageText.trim().length < 150 || wordCount < 25) {
+        isScanned = true;
+        pageContentCache[i] = { type: 'scanned-pending', items: [] };
+      } else {
+        allText += pageText + '\n';
+        pageContentCache[i] = { type: 'text', items: tc.items };
+      }
+    } catch(err) {
+      isScanned = true;
+      pageContentCache[i] = { type: 'scanned-pending', items: [] };
+    }
   }
 
-  if (isScanned && allText.trim().length < 20) {
-    area.innerHTML = '<div class="extract-status">Scanned PDF detected — highlights active on document. Enter MTR values from the highlighted areas in Step 1.</div>';
-    if (hlVisible) drawHL();
-    return;
+  // OCR pass for scanned pages using Tesseract.js (works over http/https — Web Workers only fail on file://)
+  if (isScanned) {
+    var ocrText = '';
+    try {
+      for (var p = 1; p <= numPages; p++) {
+        if (!pageContentCache[p] || pageContentCache[p].type !== 'scanned-pending') continue;
+        area.innerHTML = '<div class="extract-status">Running OCR on page ' + p + ' of ' + numPages + ' (scanned document)...</div>';
+        var ocrScale = 3.0;
+        var opage = await pdfDoc.getPage(p);
+        var ovp = opage.getViewport({ scale: ocrScale });
+        var ocrCanvas = document.createElement('canvas');
+        ocrCanvas.width = ovp.width; ocrCanvas.height = ovp.height;
+        await opage.render({ canvasContext: ocrCanvas.getContext('2d'), viewport: ovp }).promise;
+
+        var result = await Tesseract.recognize(ocrCanvas, 'eng', {
+          logger: function(m) {
+            if (m.status === 'recognizing text') {
+              area.innerHTML = '<div class="extract-status">OCR page ' + p + ' of ' + numPages + ': ' + Math.round((m.progress||0)*100) + '%</div>';
+            }
+          }
+        });
+
+        var pageOcrText = (result && result.data && result.data.text) || '';
+        ocrText += pageOcrText + '\n';
+        allText += pageOcrText + '\n';
+
+        var ocrWords = [];
+        if (result && result.data && result.data.words) {
+          result.data.words.forEach(function(w) {
+            if (!w.text || !w.bbox) return;
+            ocrWords.push({
+              str: w.text,
+              x0: w.bbox.x0, y0: w.bbox.y0,
+              x1: w.bbox.x1, y1: w.bbox.y1
+            });
+          });
+        }
+        pageContentCache[p] = { type: 'ocr', words: ocrWords, canvasW: ocrCanvas.width, canvasH: ocrCanvas.height };
+      }
+    } catch(ocrErr) {
+      console.warn('OCR failed:', ocrErr);
+    }
+
+    if (allText.trim().length < 20) {
+      area.innerHTML = '<div class="extract-status warn">Could not read text from this scanned document (OCR unavailable or image too low-quality). Highlights are approximate — please enter values manually.</div>';
+      if (hlVisible) await drawHL();
+      return;
+    }
   }
+
+  parseMtrText(allText, area);
+  if (hlVisible) await drawHL();
+}
 
 function parseMtrText(text, area) {
   var found = [];
-  var norm = text.replace(/\s+/g, ' ');
+  // Normalize: collapse whitespace but keep newlines as single spaces too (OCR line breaks are unreliable)
+  var norm = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' \n ').trim();
+  var flat = norm.replace(/\n/g, ' ').replace(/\s+/g, ' ');
 
-  // PO Number
-  var poMatch = norm.match(/(?:P\.?\s*O\.?\s*(?:No\.?|Number|#)?|Purchase\s+Order)\s*[:\-]?\s*(\d{4,10})/i);
-  if (poMatch) { document.getElementById('po-number').value = poMatch[1]; found.push('PO Number'); }
+  // ---------- MILL / SUPPLIER ----------
+  var millPatterns = [
+    /NUCOR[\-\s]?YAMATO\s*STEEL\s*(?:CO\.?|COMPANY)?/i,
+    /NUCOR\s+STEEL\s+\w+(?:,?\s*INC\.?)?/i,
+    /CMC\s+STEEL\s*\w*/i,
+    /ATLAS\s+TUBE\s*\w*/i,
+    /ARCELORMITTAL[\w\s]*/i,
+    /GERDAU[\w\s]*/i,
+    /SSAB[\w\s]*/i,
+    /STEEL\s+DYNAMICS[\w\s]*/i,
+    /CHARTER\s+STEEL[\w\s]*/i,
+    /EVRAZ[\w\s]*/i,
+    /INTSEL\s+STEEL[\w\s]*/i
+  ];
+  for (var mi = 0; mi < millPatterns.length; mi++) {
+    var mm = flat.match(millPatterns[mi]);
+    if (mm) { document.getElementById('mill-name').value = mm[0].trim().replace(/\s+/g,' '); found.push('Mill/Supplier'); break; }
+  }
 
-  // Mill / Supplier
-  var millMatch = norm.match(/(NUCOR[\-\s]?\w*\s*STEEL\s*(?:CO\.?|COMPANY)?|ARCELORMITTAL[\w\s]*|GERDAU[\w\s]*|SSAB[\w\s]*|STEEL\s+DYNAMICS[\w\s]*|CHARTER\s+STEEL[\w\s]*|EVRAZ[\w\s]*)/i);
-  if (millMatch) { document.getElementById('mill-name').value = millMatch[1].trim().replace(/\s+/g,' '); found.push('Mill/Supplier'); }
+  // ---------- PO NUMBER ----------
+  // Covers: "Customer P.O. 841392", "CUST PO#: 34182", "PO NO 1707213", "Purchase Order: DEN-27239", "Normal PO DEN - 26687 - 28"
+  var poPatterns = [
+    /CUST(?:OMER)?\.?\s*P\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
+    /\bP\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
+    /PURCHASE\s+ORDER\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
+    /\bPO\s*[:#\-]\s*([A-Z]{0,4}\-?\d{4,10})/i
+  ];
+  for (var pi = 0; pi < poPatterns.length; pi++) {
+    var pm = flat.match(poPatterns[pi]);
+    if (pm) { document.getElementById('po-number').value = pm[1].trim(); found.push('PO Number'); break; }
+  }
 
-  // Heat numbers (avoid picking up length values like "40 FT")
-  var heatMatches = norm.match(/Heat\s*(?:No\.?|Number|#)?\s*[:\-]?\s*(\d{5,7})/gi) || [];
+  // ---------- HEAT NUMBERS ----------
+  // Covers: "Heat# 496186", "HEAT NO.:1097247", "Heat/Slab Number 243539-01", "Heat No 822K36240"
   var heatNums = [];
-  heatMatches.forEach(function(m) {
-    var num = m.match(/(\d{5,7})/);
-    if (num && heatNums.indexOf(num[1]) === -1) heatNums.push(num[1]);
+  var heatPatterns = [
+    /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z0-9]{5,10})/gi
+  ];
+  var hm;
+  heatPatterns.forEach(function(re) {
+    while ((hm = re.exec(flat)) !== null) {
+      var val = hm[1].replace(/[^A-Z0-9]/gi, '');
+      // Filter obvious non-heat matches (too short/long, or pure section words)
+      if (val.length >= 5 && val.length <= 10 && heatNums.indexOf(val) === -1) heatNums.push(val);
+    }
   });
   if (heatNums[0]) { document.getElementById('heat1').value = heatNums[0]; found.push('Heat #1'); }
   if (heatNums[1]) { document.getElementById('heat2').value = heatNums[1]; found.push('Heat #2'); }
 
-  // Beam / size designation (e.g. W24X76, W14X34.0, HSS8X8X1/2, L4X4X1/2)
-  var sizeMatch = norm.match(/\b([WHLC]\d{1,2}[Xx]\d{1,3}(?:\.\d+)?|HSS\s*\d+(?:\.\d+)?[Xx]\d+(?:\.\d+)?[Xx][\d\/\.]+)\b/);
+  // ---------- SHAPE / TYPE DESIGNATION ----------
+  // Beam: W18X65.0, Channel: C8X1875 (i.e. C8X18.75), Angle: L4X3X.25, HSS: HSS10SQX375 / 10.0x10.0x.375, Plate: dimensions
+  var sizeMatch = flat.match(/\b([WHC]\d{1,2}\s*[Xx]\s*\d{1,3}(?:\.\d+)?|L\s*\d(?:\.\d+)?\s*[Xx]\s*\d(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+|HSS\s*\d+(?:\.\d+)?\s*[Xx]\s*\d+(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+)\b/i);
   if (sizeMatch) { document.getElementById('beam-type').value = sizeMatch[1].toUpperCase().replace(/\s+/g,''); found.push('Type/Size'); }
 
-  // Quantity (length) — e.g. "40 ft 0 in" or "40'-0\""
-  var qtyMatch = norm.match(/(\d+\s*ft\s*\d*\s*in|\d+'\s*-?\s*\d*\s*\d*\/?\d*")/i);
+  // Plate dimensions e.g. "0.3750 IN x 96.000 IN x 240.000 IN"
+  var plateMatch = flat.match(/(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN/i);
+  if (plateMatch && !sizeMatch) {
+    document.getElementById('beam-type').value = plateMatch[1] + 'x' + plateMatch[2] + 'x' + plateMatch[3];
+    found.push('Type/Size (Plate dimensions)');
+  }
+
+  // ---------- QUANTITY / LENGTH (per user rule: do not highlight, but still capture as data if present) ----------
+  var qtyMatch = flat.match(/(\d+\s*ft\s*\d*\s*in|\d+'\s*-?\s*\d*\s*\d*\/?\d*")/i);
   if (qtyMatch) { document.getElementById('quantity').value = qtyMatch[1].trim(); found.push('Quantity'); }
 
-  // Grade/Spec detection — set material type + spec dropdown
+  // ---------- MATERIAL TYPE + SPEC ----------
   var specDetected = null, matDetected = null;
-  if (/A709\s*(?:GR(?:ADE)?\.?\s*)?50W|A588.{0,20}50W/i.test(norm)) { specDetected = 'A709-50W'; }
-  else if (/A588/i.test(norm)) { specDetected = 'A588'; }
-  else if (/A992/i.test(norm)) { specDetected = 'A992'; }
-  else if (/A709\s*(?:GR(?:ADE)?\.?\s*)?50\b/i.test(norm)) { specDetected = 'A709-50'; }
-  else if (/A572\s*(?:GR(?:ADE)?\.?\s*)?50/i.test(norm)) { specDetected = 'A572-50'; }
-  else if (/A36\b/i.test(norm)) { specDetected = 'A36'; }
-  else if (/A500\s*(?:GR(?:ADE)?\.?\s*)?B/i.test(norm)) { specDetected = 'A500-B'; matDetected = 'hss-square'; }
+  if (/A709[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50W|A588.{0,25}50W/i.test(flat)) { specDetected = 'A709-50W'; }
+  else if (/A500[\s\-]*(?:GR(?:ADE)?\.?\s*)?B\s*(?:&|AND)?\s*C?/i.test(flat)) { specDetected = 'A500-B'; matDetected = 'hss-square'; }
+  else if (/A588/i.test(flat)) { specDetected = 'A588'; }
+  else if (/A992/i.test(flat)) { specDetected = 'A992'; }
+  else if (/A709[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i.test(flat)) { specDetected = 'A709-50'; }
+  else if (/A572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) { specDetected = 'A572-50'; }
+  else if (/A36\b/i.test(flat)) { specDetected = 'A36'; }
 
   if (sizeMatch && /^HSS/i.test(sizeMatch[1])) matDetected = matDetected || 'hss-square';
   else if (sizeMatch && /^W/i.test(sizeMatch[1])) matDetected = matDetected || 'beam';
   else if (sizeMatch && /^L/i.test(sizeMatch[1])) matDetected = matDetected || 'angle';
   else if (sizeMatch && /^C/i.test(sizeMatch[1])) matDetected = matDetected || 'channel';
+  else if (plateMatch) matDetected = matDetected || 'plate';
+  else if (/\bPLATE\b/i.test(flat)) matDetected = matDetected || 'plate';
 
   if (matDetected) {
     document.getElementById('mat-type').value = matDetected;
@@ -701,45 +820,80 @@ function parseMtrText(text, area) {
   }
   if (specDetected) {
     var sel = document.getElementById('spec-select');
-    for (var i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === specDetected) { sel.value = specDetected; break; }
+    for (var si = 0; si < sel.options.length; si++) {
+      if (sel.options[si].value === specDetected) { sel.value = specDetected; break; }
     }
     initChem();
     found.push('Specification');
   }
 
-  // Fracture critical / no weld repair flags feed into notes, not required here
+  // ---------- CHEMISTRY ----------
+  // Strategy A: "Element  0.NN%" or "Element: 0.NN" label:value pairs (CMC-style) — most reliable, try first.
+  var elemAliases = {
+    C:'C', MN:'Mn', P:'P', S:'S', SI:'Si', CU:'Cu', NI:'Ni', CR:'Cr', MO:'Mo',
+    V:'V', CB:'Cb', NB:'Cb', SN:'Sn', B:'B', TI:'Ti', N:'N', N2:'N', CA:'Ca',
+    AL:'Al', ZR:'Zr', CE:'CE', CEV:'CE', PCM:'Pcm', CI:'Ci', ACI:'Ci'
+  };
+  var elemKeys = Object.keys(elemAliases).sort(function(a,b){ return b.length - a.length; });
 
-  // Chemistry — parse element table. Look for a line containing element symbols as headers
-  // followed by a line of numeric values, per heat.
-  var elemOrder = ['C','Mn','P','S','Si','Cu','Ni','Cr','Mo','V','Cb','Nb','Sn','Ca','Al','N','Ti','B','Zr','CE','Pcm','Ci'];
-  var chemAssigned = 0;
-  heatNums.forEach(function(heatNum, idx) {
-    // Try to find a run of decimal numbers appearing after this heat number in the text
-    var heatIdx = norm.indexOf(heatNum);
-    if (heatIdx === -1) return;
-    var after = norm.slice(heatIdx, heatIdx + 500);
-    var nums = after.match(/\b\d{1,2}\.\d{2,4}\b/g);
-    if (!nums || nums.length < 3) return;
-    var target = idx === 0 ? chem1 : chem2;
-    // Assign sequentially to common element order — best effort
-    var assignCount = Math.min(nums.length, elemOrder.length);
-    for (var j = 0; j < assignCount; j++) {
-      target[elemOrder[j]] = nums[j];
+  function findLabelValuePairs(sourceText) {
+    var out = {};
+    var re = new RegExp('\\b(' + elemKeys.join('|') + ')\\b\\s*[:\\-]?\\s*(\\d{1,2}\\.\\d{2,4})\\s*%?', 'gi');
+    var m;
+    while ((m = re.exec(sourceText)) !== null) {
+      var key = elemAliases[m[1].toUpperCase()];
+      if (key && out[key] === undefined) out[key] = m[2];
     }
-    chemAssigned++;
-  });
-  if (chemAssigned > 0) { initChem(); found.push('Chemistry (approximate — verify against highlighted table)'); }
+    return out;
+  }
+
+  // Strategy B: table header row of element symbols followed shortly after by a row of decimal numbers (Nucor/Atlas-style dense tables)
+  function findTableRow(sourceText) {
+    var out = {};
+    var headerRe = new RegExp('((?:\\b(?:' + elemKeys.join('|') + ')\\b[\\s,]*){3,})', 'i');
+    var hm2 = sourceText.match(headerRe);
+    if (!hm2) return out;
+    var headerStr = hm2[0];
+    var headers = headerStr.match(new RegExp('\\b(?:' + elemKeys.join('|') + ')\\b', 'gi')) || [];
+    var afterHeader = sourceText.slice(hm2.index + headerStr.length, hm2.index + headerStr.length + 400);
+    var nums = afterHeader.match(/\b\d{1,2}\.\d{2,4}\b/g);
+    if (!nums || nums.length < 3) return out;
+    var count = Math.min(headers.length, nums.length);
+    for (var k = 0; k < count; k++) {
+      var key = elemAliases[headers[k].toUpperCase()];
+      if (key && out[key] === undefined) out[key] = nums[k];
+    }
+    return out;
+  }
+
+  // Split text roughly into two halves around the 2nd heat number (if present) to separate heat 1 / heat 2 chemistry
+  var chemAssigned = 0;
+  if (heatNums.length >= 2) {
+    var idx1 = flat.indexOf(heatNums[0]);
+    var idx2 = flat.indexOf(heatNums[1]);
+    if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
+      var seg1 = flat.slice(idx1, idx2);
+      var seg2 = flat.slice(idx2, idx2 + 600);
+      var v1 = findLabelValuePairs(seg1); if (Object.keys(v1).length < 2) v1 = findTableRow(seg1);
+      var v2 = findLabelValuePairs(seg2); if (Object.keys(v2).length < 2) v2 = findTableRow(seg2);
+      Object.assign(chem1, v1);
+      Object.assign(chem2, v2);
+      if (Object.keys(v1).length) chemAssigned++;
+      if (Object.keys(v2).length) chemAssigned++;
+    }
+  }
+  if (!chemAssigned) {
+    var v = findLabelValuePairs(flat);
+    if (Object.keys(v).length < 2) v = findTableRow(flat);
+    if (Object.keys(v).length) { Object.assign(chem1, v); chemAssigned++; }
+  }
+  if (chemAssigned > 0) { initChem(); found.push('Chemistry (auto-detected — verify against highlighted table)'); }
 
   if (found.length) {
-    area.innerHTML = '<div class="extract-status">Auto-extracted: ' + found.join(', ') + '. Please verify against highlighted regions.</div>';
+    area.innerHTML = '<div class="extract-status">Auto-extracted: ' + found.join(', ') + '. Please verify all values against the highlighted regions before proceeding.</div>';
   } else {
-    area.innerHTML = '<div class="extract-status warn">Could not auto-detect fields from this document. Please enter data manually using the highlighted regions as a guide.</div>';
+    area.innerHTML = '<div class="extract-status warn">Could not auto-detect fields from this document format. Please enter data manually using the highlighted regions as a guide.</div>';
   }
-}
-
-  parseMtrText(allText, area);
-  if (hlVisible) drawHL();
 }
 
 // ===== PDF RENDER =====
@@ -777,16 +931,17 @@ async function drawHL() {
   document.querySelectorAll('.hl-chip.active').forEach(function(chip) { act[chip.dataset.area] = true; });
   var LABELS = {heat:'Heat #', grade:'Grade/Spec', chem:'Chemistry', cvn:'CVN', mech:'Mechanical', cert:'Certification'};
 
-  // Try text-based highlighting first (works for digital PDFs)
+  // Try content-aware highlighting first (works for digital text PDFs AND OCR'd scanned PDFs)
   var cache = pageContentCache[curPage];
   var textHighlights = null;
-  if (cache && cache.type === 'text') {
+  if (cache && (cache.type === 'text' || (cache.type === 'ocr' && cache.words && cache.words.length))) {
     try {
       var page = await pdfDoc.getPage(curPage);
       var viewport = page.getViewport({scale: scale});
       var words = getPixelWords(curPage, viewport);
       var lines = groupLines(words);
       textHighlights = computeHighlightsFromText(words, lines, c.width, c.height);
+      if (!textHighlights || !Object.keys(textHighlights).length) textHighlights = null;
     } catch(err) { textHighlights = null; }
   }
 
