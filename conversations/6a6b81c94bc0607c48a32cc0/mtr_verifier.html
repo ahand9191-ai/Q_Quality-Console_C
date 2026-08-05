@@ -730,6 +730,8 @@ function parseMtrText(text, area) {
   var found = [];
   var norm = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' \n ').trim();
   var flat = norm.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  // OCR error corrections (common Tesseract substitutions on scanned MTRs)
+  flat = flat.replace(/\bAS88\b/gi, 'A588').replace(/\bAS36\b/gi, 'A36').replace(/\bA5S8\b/gi, 'A588');
 
   // ========== PRIORITY 1: HEAT NUMBERS (most critical field) ==========
   var heatNums = [];
@@ -745,7 +747,7 @@ function parseMtrText(text, area) {
     if (val.length >= 5 && val.length <= 12 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
       // Exclude numbers that appear after weight/qty labels
       var ctx = flat.substring(Math.max(0, hm.index - 25), hm.index);
-      if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total|Order|Load|Tally|Phone|ZIP|Cert\b|BOL\b/i.test(ctx)) {
+      if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total|Order|Load|Tally|Phone|ZIP|Cert\b|BOL\b|Material|Sales|Mill|Page/i.test(ctx)) {
         heatNums.push(val);
       }
     }
@@ -759,12 +761,16 @@ function parseMtrText(text, area) {
     }
   }
 
-  // Strategy 3: Look for "Heat/Slab Certified" followed by a 6-digit number in a table row
-  // For Nucor Tuscaloosa: "Heat/Slab Certified By 4C0914B 243539-01"
+  // Strategy 3: Nucor Tuscaloosa format — heat numbers appear as "243539-01" in table rows
+  // Look for 6-digit number followed by "-0" and a digit, near Heat/Slab context
   if (heatNums.length === 0) {
-    var tableHeatRe = /(?:Heat\s*\/\s*Slab|Certified\s+By)[^\d]{0,30}(\d{6})\s*\-0\d/gi;
+    var tableHeatRe = /(\d{6})\s*-\s*0\d\b/gi;
     while ((hm = tableHeatRe.exec(flat)) !== null) {
-      if (heatNums.indexOf(hm[1]) === -1) heatNums.push(hm[1]);
+      // Exclude if preceded by "Load", "Order", "Material" (not a heat number)
+      var ctx5 = flat.substring(Math.max(0, hm.index - 30), hm.index);
+      if (!/Load\s*Number|Order\s*Number|Material\s*No|Cert(?:ificate)?\s*Number/i.test(ctx5) && heatNums.indexOf(hm[1]) === -1) {
+        heatNums.push(hm[1]);
+      }
     }
   }
 
@@ -772,28 +778,24 @@ function parseMtrText(text, area) {
   if (heatNums.length === 0) {
     var fuzzyHeatRe = /(\d{6,7})(?=[^0-9])/g;
     while ((hm = fuzzyHeatRe.exec(flat)) !== null) {
-      var ctx2 = flat.substring(Math.max(0, hm.index - 100), hm.index + 50);
+      var ctx2 = flat.substring(Math.max(0, hm.index - 50), hm.index + 30);
       if (/HEAT|SLAB|MELT|POUR/i.test(ctx2) && heatNums.indexOf(hm[1]) === -1) {
-        // Exclude if context shows it's a weight, date, order, or cert number
-        if (!/LBS|WEIGHT|DLVRY|Date|Total|Order|Cert|Phone|ZIP|Load|Tally|BOL|Part|Item|Page/i.test(ctx2)) {
+        // Exclude if context shows it's a non-heat number
+        if (!/LBS|WEIGHT|DLVRY|Date|Total|Order|Cert|Phone|ZIP|Load|Tally|BOL|Part|Item|Page|Material|Sales|Mill/i.test(ctx2)) {
           heatNums.push(hm[1]);
         }
       }
     }
   }
 
-  // Strategy 5: For Nucor-Yamato dense tables — look for numbers in the chemistry table area
+  // Strategy 5: For Nucor-Yamato dense tables — very restrictive
+  // Only use if HEAT keyword is within 30 chars of the number
   if (heatNums.length === 0) {
-    // Nucor-Yamato often has heat numbers near the mill name and "Customer P.O"
-    var nucorRe = /(?:W\d{1,2}[Xx]\d{1,3}|NUCOR|YAMATO)[^\n]{0,500}?(\d{6})/gi;
+    var nucorRe = /HEAT[^\d]{0,30}(\d{6})\b/gi;
     while ((hm = nucorRe.exec(flat)) !== null) {
-      var ctx3 = flat.substring(hm.index, hm.index + 600);
-      // Only accept if chemistry-like values are nearby (confirms it's in the data area)
-      if (/\d\.\d{2}/.test(ctx3) && heatNums.indexOf(hm[1]) === -1) {
-        var ctx4 = flat.substring(Math.max(0, hm.index - 50), hm.index + 10);
-        if (!/Load|Tally|Order|BOL|Part|Item|Cert\b/i.test(ctx4)) {
-          heatNums.push(hm[1]);
-        }
+      var ctx3 = flat.substring(Math.max(0, hm.index - 10), hm.index + 50);
+      if (!/Load|Tally|Order|BOL|Part|Item|Cert|Material|Sales|Mill|Page/i.test(ctx3) && heatNums.indexOf(hm[1]) === -1) {
+        heatNums.push(hm[1]);
       }
     }
   }
@@ -805,7 +807,7 @@ function parseMtrText(text, area) {
   var specDetected = null;
 
   // Step A: "GRADE:" label — the spec printed next to GRADE: on the MTR is always primary
-  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\w\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})([Ww]?)/i);
+  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})([Ww]?)/i);
   if (gradeLabelMatch) {
     var isSA = (gradeLabelMatch[1] || '').toUpperCase() === 'SA';
     var specNum = gradeLabelMatch[2];
@@ -830,7 +832,7 @@ function parseMtrText(text, area) {
     // A709-50W: weathering bridge steel (highest priority)
     if (/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50W\b/i.test(flat)) specDetected = 'A709-50W';
     // A588: weathering steel (check it's not in "ALSO MEETS" remarks)
-    if (/\bA588\b/i.test(flat)) {
+    if (!specDetected && /\bA588\b/i.test(flat)) {
       var a588pos = flat.search(/\bA588\b/i);
       var ctxA588 = flat.substring(Math.max(0, a588pos - 30), a588pos + 40);
       if (!/ALSO\s+MEETS|REMARKS/i.test(ctxA588)) specDetected = 'A588';
@@ -840,17 +842,21 @@ function parseMtrText(text, area) {
     // SA36 = A36 (ASME spec for mild steel)
     if (!specDetected && /\bSA36\b/i.test(flat)) specDetected = 'A36';
     // A709-50: non-weathering bridge steel — only if NOT in remarks/also-meets context
-    var a709Match50 = flat.search(/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i);
-    if (a709Match50 !== -1) {
-      var ctx709 = flat.substring(Math.max(0, a709Match50 - 30), a709Match50 + 50);
-      if (!/ALSO\s+MEETS|REMARKS/i.test(ctx709)) specDetected = 'A709-50';
+    if (!specDetected) {
+      var a709Match50 = flat.search(/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i);
+      if (a709Match50 !== -1) {
+        var ctx709 = flat.substring(Math.max(0, a709Match50 - 30), a709Match50 + 50);
+        if (!/ALSO\s+MEETS|REMARKS/i.test(ctx709)) specDetected = 'A709-50';
+      }
     }
+    // A572-50
     if (!specDetected && /\bA572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) specDetected = 'A572-50';
-    else if (/\bA500[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) { specDetected = 'A500-B'; }
+    // A500-B/C (HSS tubing)
+    if (!specDetected && /\bA500[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) specDetected = 'A500-B';
     // A992: non-weathering beam steel
-    else if (/\bA992\b/i.test(flat)) specDetected = 'A992';
+    if (!specDetected && /\bA992\b/i.test(flat)) specDetected = 'A992';
     // A36: mild steel (check last — it's common in remarks too)
-    else if (/\bA36\b/i.test(flat)) {
+    if (!specDetected && /\bA36\b/i.test(flat)) {
       var a36pos = flat.search(/\bA36\b/i);
       var ctxA36 = flat.substring(Math.max(0, a36pos - 30), a36pos + 40);
       if (!/ALSO\s+MEETS|REMARKS/i.test(ctxA36)) specDetected = 'A36';
