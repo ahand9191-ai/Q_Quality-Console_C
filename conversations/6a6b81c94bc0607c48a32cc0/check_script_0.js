@@ -161,17 +161,64 @@ async function extractMtrData() {
       var pageText = tc.items.map(function(item) { return item.str; }).join(' ');
       allText += pageText + '\n';
     }
-  } catch(err) {
-    allText = '';
-  }
+  } catch(err) { allText = ''; }
 
   if (allText.trim().length < 20) {
-    area.innerHTML = '<div class="extract-status warn">No embedded text found (scanned PDF). Please enter MTR data manually on the left.</div>';
-    return;
+    // No embedded text - try OCR for scanned PDFs
+    area.innerHTML = '<div class="extract-status">No embedded text found. Running OCR on scanned document... (10-30 sec)</div>';
+    try {
+      allText = await ocrPdfPages();
+    } catch(err) {
+      area.innerHTML = '<div class="extract-status warn">OCR failed: ' + err.message + '. Please enter MTR data manually.</div>';
+      return;
+    }
+    if (!allText || allText.trim().length < 20) {
+      area.innerHTML = '<div class="extract-status warn">No text could be extracted. Please enter MTR data manually.</div>';
+      return;
+    }
   }
 
+  parseMtrText(allText, area);
+}
+
+// ===== OCR FALLBACK =====
+async function loadTesseract() {
+  if (window.Tesseract) return;
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  document.head.appendChild(s);
+  await new Promise(function(resolve, reject) {
+    s.onload = resolve;
+    s.onerror = function() { reject(new Error('Failed to load OCR engine')); };
+  });
+}
+
+async function ocrPdfPages() {
+  await loadTesseract();
+  var area = document.getElementById('extract-area');
+  var allText = '';
+  var pages = Math.min(pdfDoc.numPages, 3);
+  for (var p = 1; p <= pages; p++) {
+    area.innerHTML = '<div class="extract-status">Running OCR... page ' + p + ' of ' + pages + '</div>';
+    var page = await pdfDoc.getPage(p);
+    var vp = page.getViewport({ scale: 2.5 });
+    var c = document.createElement('canvas');
+    c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    var result = await Tesseract.recognize(c, 'eng', { logger: function(m) {
+      if (m.status === 'recognizing text') {
+        var pct = Math.round(m.progress * 100);
+        area.innerHTML = '<div class="extract-status">OCR page ' + p + '/' + pages + '... ' + pct + '%</div>';
+      }
+    }});
+    allText += result.data.text + '\n';
+  }
+  return allText;
+}
+
+// ===== PARSE MTR TEXT =====
+function parseMtrText(text, area) {
   var filled = [];
-  var text = allText;
 
   // PO Number
   var poMatch = text.match(/(?:PO|P\.O\.|Purchase\s*Order)\s*#?\s*(\d{4,})/i);
@@ -214,13 +261,8 @@ async function extractMtrData() {
   if (/Nucor/i.test(text)) { document.getElementById('mill-name').value = 'Nucor-Yamato Steel'; filled.push('Mill'); }
   else if (/ArcelorMittal/i.test(text)) { document.getElementById('mill-name').value = 'ArcelorMittal'; filled.push('Mill'); }
   else if (/Steel\s*Dynamics/i.test(text)) { document.getElementById('mill-name').value = 'Steel Dynamics'; filled.push('Mill'); }
-  else if (/Nucor.*Yamato/i.test(text)) { document.getElementById('mill-name').value = 'Nucor-Yamato Steel'; filled.push('Mill'); }
 
-  // Country of origin
-  if (/Melted.*Manufactured.*USA|Made.*USA|U\.S\.A/i.test(text)) { filled.push('Domestic (USA)'); }
-
-  // Chemical composition - try to find element values
-  // Look for patterns like "C 0.09 Mn 1.25" or "Carbon 0.09 Manganese 1.25"
+  // Chemical composition
   var chemFound = [];
   var chemPatterns = {
     C: /(?:^|\s)C\s+\.?(\d{1,4}\.?\d{0,4})/m,
@@ -246,11 +288,9 @@ async function extractMtrData() {
     }
   });
 
-  // Re-init chemistry tables to show extracted values
   initChem();
   if (chemFound.length > 0) filled.push('Chemistry (' + chemFound.length + ' elements)');
 
-  // Update status
   if (filled.length > 0) {
     area.innerHTML = '<div class="extract-status">Auto-extracted: ' + filled.join(', ') + '</div>';
   } else {
