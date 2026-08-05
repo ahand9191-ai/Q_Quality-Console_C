@@ -678,7 +678,7 @@ async function extractMtrData() {
       for (var p = 1; p <= numPages; p++) {
         if (!pageContentCache[p] || pageContentCache[p].type !== 'scanned-pending') continue;
         area.innerHTML = '<div class="extract-status">Running OCR on page ' + p + ' of ' + numPages + ' (scanned document)...</div>';
-        var ocrScale = 3.0;
+        var ocrScale = 4.0;
         var opage = await pdfDoc.getPage(p);
         var ovp = opage.getViewport({ scale: ocrScale });
         var ocrCanvas = document.createElement('canvas');
@@ -727,96 +727,188 @@ async function extractMtrData() {
 
 function parseMtrText(text, area) {
   var found = [];
-  // Normalize: collapse whitespace but keep newlines as single spaces too (OCR line breaks are unreliable)
   var norm = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' \n ').trim();
   var flat = norm.replace(/\n/g, ' ').replace(/\s+/g, ' ');
 
   // ---------- MILL / SUPPLIER ----------
   var millPatterns = [
-    /NUCOR[\-\s]?YAMATO\s*STEEL\s*(?:CO\.?|COMPANY)?/i,
-    /NUCOR\s+STEEL\s+\w+(?:,?\s*INC\.?)?/i,
-    /CMC\s+STEEL\s*\w*/i,
-    /ATLAS\s+TUBE\s*\w*/i,
-    /ARCELORMITTAL[\w\s]*/i,
-    /GERDAU[\w\s]*/i,
-    /SSAB[\w\s]*/i,
-    /STEEL\s+DYNAMICS[\w\s]*/i,
-    /CHARTER\s+STEEL[\w\s]*/i,
-    /EVRAZ[\w\s]*/i,
-    /INTSEL\s+STEEL[\w\s]*/i
+    [/NUCOR[\-\s]?YAMATO\s*STEEL\s*(?:CO\.?|COMPANY)?/i, 'Nucor-Yamato Steel'],
+    [/NUCOR\s+STEEL\s+TUSCALOOSA/i, 'Nucor Steel Tuscaloosa'],
+    [/NUCOR\s+STEEL[\w\s,\.]*INC\.?/i, null],
+    [/CMC\s+STEEL\s*\w*/i, null],
+    [/ATLAS\s*TUBE/i, 'Atlas Tube'],
+    [/Al\s*Ti\s*be/i, 'Atlas Tube'],
+    [/DIVISION\s+OF\s+ZEKELMAN/i, 'Atlas Tube'],
+    [/BLYTHEVILLE.*ARKANSAS/i, 'Atlas Tube'],
+    [/ZEKELMAN[\w\s]*/i, 'Zekelman Industries'],
+    [/ARCELORMITTAL[\w\s]*/i, null],
+    [/GERDAU[\w\s]*/i, null],
+    [/SSAB[\w\s]*/i, null],
+    [/STEEL\s+DYNAMICS[\w\s]*/i, null],
+    [/CHARTER\s+STEEL[\w\s]*/i, null],
+    [/EVRAZ[\w\s]*/i, null],
+    [/INTSEL\s+STEEL\s+\w+/i, null]
   ];
   for (var mi = 0; mi < millPatterns.length; mi++) {
-    var mm = flat.match(millPatterns[mi]);
-    if (mm) { document.getElementById('mill-name').value = mm[0].trim().replace(/\s+/g,' '); found.push('Mill/Supplier'); break; }
+    var mm = flat.match(millPatterns[mi][0]);
+    if (mm) {
+      var millName = millPatterns[mi][1] || mm[0].trim().replace(/\s+/g,' ').substring(0, 50);
+      document.getElementById('mill-name').value = millName;
+      found.push('Mill/Supplier');
+      break;
+    }
   }
 
   // ---------- PO NUMBER ----------
-  // Covers: "Customer P.O. 841392", "CUST PO#: 34182", "PO NO 1707213", "Purchase Order: DEN-27239", "Normal PO DEN - 26687 - 28"
   var poPatterns = [
     /CUST(?:OMER)?\.?\s*P\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
     /\bP\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
     /PURCHASE\s+ORDER\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
-    /\bPO\s*[:#\-]\s*([A-Z]{0,4}\-?\d{4,10})/i
+    /\bPO\s*[:#\-]\s*([A-Z]{0,4}\-?\d{4,10})/i,
+    /Normal\s*PO\s*([A-Z]{0,4}\s*\-?\s*\d{4,10})/i
   ];
   for (var pi = 0; pi < poPatterns.length; pi++) {
     var pm = flat.match(poPatterns[pi]);
-    if (pm) { document.getElementById('po-number').value = pm[1].trim(); found.push('PO Number'); break; }
+    if (pm) {
+      document.getElementById('po-number').value = pm[1].trim().replace(/\s+/g,'');
+      found.push('PO Number');
+      break;
+    }
   }
 
   // ---------- HEAT NUMBERS ----------
-  // Covers: "Heat# 496186", "HEAT NO.:1097247", "Heat/Slab Number 243539-01", "Heat No 822K36240"
+  // OCR-tolerant: handles t->1, s->5, l->1 substitutions. Excludes weight/qty numbers.
   var heatNums = [];
-  var heatPatterns = [
-    /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z0-9]{5,10})/gi
-  ];
+  // First try: find "HEAT" label followed by a number (most reliable)
+  var heatLabelRe = /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z0-9tTsSlIoO]{5,10})/gi;
   var hm;
-  heatPatterns.forEach(function(re) {
-    while ((hm = re.exec(flat)) !== null) {
-      var val = hm[1].replace(/[^A-Z0-9]/gi, '');
-      // Filter obvious non-heat matches (too short/long, or pure section words)
-      if (val.length >= 5 && val.length <= 10 && heatNums.indexOf(val) === -1) heatNums.push(val);
+  while ((hm = heatLabelRe.exec(flat)) !== null) {
+    var raw = hm[1];
+    // Fix common OCR substitutions in heat numbers
+    var val = raw.replace(/t/gi, '1').replace(/I/g, '1').replace(/o/gi, '0').replace(/[^A-Z0-9]/gi, '');
+    // Must be mostly digits (real heat numbers)
+    var digitCount = (val.match(/\d/g) || []).length;
+    if (val.length >= 5 && val.length <= 10 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
+      // Exclude obvious non-heat values (weights, dates, etc.)
+      var ctx = flat.substring(Math.max(0, hm.index - 20), hm.index);
+      if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total/i.test(ctx)) {
+        heatNums.push(val);
+      }
     }
-  });
+  }
+  // Fallback: look for "Slab" numbers (Nucor Tuscaloosa format: "243539-01")
+  if (heatNums.length === 0) {
+    var slabRe = /SLAB\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{5,7})\-?\d*/gi;
+    while ((hm = slabRe.exec(flat)) !== null) {
+      if (heatNums.indexOf(hm[1]) === -1) heatNums.push(hm[1]);
+    }
+  }
+  // Fallback: for Nucor Tuscaloosa, heat number appears in table row like "243539-01"
+  if (heatNums.length === 0) {
+    var tableHeatRe = /\b(\d{6})\-0\d\b/g;
+    while ((hm = tableHeatRe.exec(flat)) !== null) {
+      var ctx2 = flat.substring(Math.max(0, hm.index - 100), hm.index + 100);
+      if (/Heat|Slab|Certified/i.test(ctx2) && heatNums.indexOf(hm[1]) === -1) heatNums.push(hm[1]);
+    }
+  }
   if (heatNums[0]) { document.getElementById('heat1').value = heatNums[0]; found.push('Heat #1'); }
   if (heatNums[1]) { document.getElementById('heat2').value = heatNums[1]; found.push('Heat #2'); }
 
   // ---------- SHAPE / TYPE DESIGNATION ----------
-  // Beam: W18X65.0, Channel: C8X1875 (i.e. C8X18.75), Angle: L4X3X.25, HSS: HSS10SQX375 / 10.0x10.0x.375, Plate: dimensions
-  var sizeMatch = flat.match(/\b([WHC]\d{1,2}\s*[Xx]\s*\d{1,3}(?:\.\d+)?|L\s*\d(?:\.\d+)?\s*[Xx]\s*\d(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+|HSS\s*\d+(?:\.\d+)?\s*[Xx]\s*\d+(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+)\b/i);
-  if (sizeMatch) { document.getElementById('beam-type').value = sizeMatch[1].toUpperCase().replace(/\s+/g,''); found.push('Type/Size'); }
-
-  // Plate dimensions e.g. "0.3750 IN x 96.000 IN x 240.000 IN"
-  var plateMatch = flat.match(/(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN/i);
-  if (plateMatch && !sizeMatch) {
-    document.getElementById('beam-type').value = plateMatch[1] + 'x' + plateMatch[2] + 'x' + plateMatch[3];
-    found.push('Type/Size (Plate dimensions)');
+  var sizeMatch = null, sizeStr = '';
+  // Pattern 0: "SECTION: ANG 4 X 3x1/4" or "SECTION: CHANNEL 8X18.75" (CMC format)
+  var sectionMatch = flat.match(/SECTION\s*[:\-]?\s*(?:ANG(?:LE)?\s*)?(\d\s*[Xx]\s*\d(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+|\d\s*[Xx]\s*\d{1,3}(?:\.\d+)?)/i);
+  if (sectionMatch) {
+    sizeStr = sectionMatch[1].toUpperCase().replace(/\s+/g,'');
+  }
+  // Pattern 1: W18X65, W24x76, C8x18.75 etc. (standard AISC shapes)
+  if (!sizeStr) {
+    sizeMatch = flat.match(/\b([WHC]\d{1,2}\s*[Xx]\s*\d{1,3}(?:\.\d+)?)\b/);
+    if (sizeMatch) sizeStr = sizeMatch[1].toUpperCase().replace(/\s+/g,'');
+  }
+  // Pattern 2: L4X3X1/4 or L4 X 3 X .25 (angle)
+  if (!sizeStr) {
+    sizeMatch = flat.match(/\bL\s*(\d)\s*[Xx]\s*(\d)\s*[Xx]\s*([\d\/\.]+)/i);
+    if (sizeMatch) sizeStr = 'L' + sizeMatch[1] + 'X' + sizeMatch[2] + 'X' + sizeMatch[3];
+  }
+  // Pattern 3: HSS10SQX375 or HSS 10x10x.375
+  if (!sizeStr) {
+    sizeMatch = flat.match(/HSS\s*(\d+(?:\.\d+)?)\s*[XxSQ\s]+\s*(\d+(?:\.\d+)?)?\s*[Xx]\s*([\d\.\/]+)/i);
+    if (sizeMatch) sizeStr = 'HSS' + sizeMatch[1] + (sizeMatch[2] ? 'X' + sizeMatch[2] : 'SQ') + 'X' + sizeMatch[3];
+  }
+  // Pattern 4: Plate dims "0.3750 IN x 96.000 IN x 240.000 IN" or "0.375 x 96 x 240"
+  if (!sizeStr) {
+    sizeMatch = flat.match(/(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN/i);
+    if (sizeMatch) sizeStr = sizeMatch[1] + 'x' + sizeMatch[2] + 'x' + sizeMatch[3];
+  }
+  if (sizeStr) {
+    document.getElementById('beam-type').value = sizeStr;
+    found.push('Type/Size');
   }
 
-  // ---------- QUANTITY / LENGTH (per user rule: do not highlight, but still capture as data if present) ----------
-  var qtyMatch = flat.match(/(\d+\s*ft\s*\d*\s*in|\d+'\s*-?\s*\d*\s*\d*\/?\d*")/i);
-  if (qtyMatch) { document.getElementById('quantity').value = qtyMatch[1].trim(); found.push('Quantity'); }
-
-  // ---------- MATERIAL TYPE + SPEC ----------
-  var specDetected = null, matDetected = null;
-  if (/A709[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50W|A588.{0,25}50W/i.test(flat)) { specDetected = 'A709-50W'; }
-  else if (/A500[\s\-]*(?:GR(?:ADE)?\.?\s*)?B\s*(?:&|AND)?\s*C?/i.test(flat)) { specDetected = 'A500-B'; matDetected = 'hss-square'; }
-  else if (/A588/i.test(flat)) { specDetected = 'A588'; }
-  else if (/A992/i.test(flat)) { specDetected = 'A992'; }
-  else if (/A709[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i.test(flat)) { specDetected = 'A709-50'; }
-  else if (/A572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) { specDetected = 'A572-50'; }
-  else if (/A36\b/i.test(flat)) { specDetected = 'A36'; }
-
-  if (sizeMatch && /^HSS/i.test(sizeMatch[1])) matDetected = matDetected || 'hss-square';
-  else if (sizeMatch && /^W/i.test(sizeMatch[1])) matDetected = matDetected || 'beam';
-  else if (sizeMatch && /^L/i.test(sizeMatch[1])) matDetected = matDetected || 'angle';
-  else if (sizeMatch && /^C/i.test(sizeMatch[1])) matDetected = matDetected || 'channel';
-  else if (plateMatch) matDetected = matDetected || 'plate';
-  else if (/\bPLATE\b/i.test(flat)) matDetected = matDetected || 'plate';
-
+  // ---------- MATERIAL TYPE ----------
+  var matDetected = null;
+  if (/\bHSS\b|\bTUBE\b|\bSQUARE\s*TUBE/i.test(flat)) matDetected = 'hss-square';
+  else if (/\bANGLE\b|\bANG\s+\d/i.test(flat)) matDetected = 'angle';
+  else if (/\bCHANNEL\b|\bCHANNEL\s+\d/i.test(flat)) matDetected = 'channel';
+  else if (/\bPLATE\b|\bHOT\s*ROL\s*PLATE/i.test(flat)) matDetected = 'plate';
+  else if (/\bBEAM\b|\bW\d+\s*[Xx]\s*\d/i.test(flat)) matDetected = 'beam';
+  else if (sizeStr && /^W/i.test(sizeStr)) matDetected = 'beam';
+  else if (sizeStr && /^L/i.test(sizeStr)) matDetected = 'angle';
+  else if (sizeStr && /^C/i.test(sizeStr)) matDetected = 'channel';
+  else if (sizeStr && /^HSS/i.test(sizeStr)) matDetected = 'hss-square';
   if (matDetected) {
     document.getElementById('mat-type').value = matDetected;
     onMaterialChange();
     found.push('Material Type');
+  }
+
+  // ---------- SPECIFICATION ----------
+  var specDetected = null;
+
+  // STEP 1: GRADE: label — the spec printed next to "GRADE:" is always the primary spec (most reliable)
+  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(ASTM\s*)?(A\d{3}[\w\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?\d{0,2}[Ww]?)/i);
+  if (gradeLabelMatch) {
+    var gradeSpec = gradeLabelMatch[2].toUpperCase().replace(/\s+/g, '');
+    var specMatch2 = gradeSpec.match(/A(\d{3})/);
+    if (specMatch2) {
+      var baseSpec = 'A' + specMatch2[1];
+      if (/50W/i.test(gradeSpec)) specDetected = 'A709-50W';
+      else if (baseSpec === 'A709' && /50/.test(gradeSpec)) specDetected = 'A709-50';
+      else if (baseSpec === 'A588') specDetected = 'A588';
+      else if (baseSpec === 'A572' && /50/.test(gradeSpec)) specDetected = 'A572-50';
+      else if (baseSpec === 'A500') specDetected = 'A500-B';
+      else if (baseSpec === 'A992') specDetected = 'A992';
+      else if (baseSpec === 'A36') specDetected = 'A36';
+      else if (baseSpec === 'A529' && /50/.test(gradeSpec)) specDetected = 'A572-50';
+    }
+  }
+
+  // STEP 2: If no GRADE: label found, fall back to pattern matching (less reliable — may hit remarks)
+  if (!specDetected) {
+    if (/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50W\b/i.test(flat)) specDetected = 'A709-50W';
+    else if (/\bA588\b/i.test(flat)) {
+      var a588pos = flat.search(/\bA588\b/i);
+      var ctxAround = flat.substring(Math.max(0, a588pos - 30), a588pos + 40);
+      if (!/ALSO\s+MEETS|REMARKS/i.test(ctxAround)) specDetected = 'A588';
+    }
+    else if (/\b588\b/.test(flat) && /PLATE|COIL|HOT\s*ROL/i.test(flat)) specDetected = 'A588';
+    else if (/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i.test(flat)) {
+      var a709pos = flat.search(/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i);
+      var ctx709 = flat.substring(Math.max(0, a709pos - 30), a709pos + 50);
+      if (!/ALSO\s+MEETS|REMARKS/i.test(ctx709)) specDetected = 'A709-50';
+    }
+    else if (/\bA572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) specDetected = 'A572-50';
+    else if (/\bA500[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) { specDetected = 'A500-B'; matDetected = matDetected || 'hss-square'; }
+    else if (/\bA992\b/i.test(flat)) specDetected = 'A992';
+    else if (/\bA36\b/i.test(flat)) specDetected = 'A36';
+  }
+
+  // STEP 3: A709-50W override — only if A709 Gr50W appears BEFORE A588 (both as clear matches)
+  var a709Idx = flat.search(/\bA709[^\n]{0,20}50W/i);
+  var a588Idx = flat.search(/\bA588\b/i);
+  if (a709Idx !== -1 && a588Idx !== -1 && a709Idx < a588Idx) {
+    specDetected = 'A709-50W';
   }
   if (specDetected) {
     var sel = document.getElementById('spec-select');
@@ -828,7 +920,6 @@ function parseMtrText(text, area) {
   }
 
   // ---------- CHEMISTRY ----------
-  // Strategy A: "Element  0.NN%" or "Element: 0.NN" label:value pairs (CMC-style) — most reliable, try first.
   var elemAliases = {
     C:'C', MN:'Mn', P:'P', S:'S', SI:'Si', CU:'Cu', NI:'Ni', CR:'Cr', MO:'Mo',
     V:'V', CB:'Cb', NB:'Cb', SN:'Sn', B:'B', TI:'Ti', N:'N', N2:'N', CA:'Ca',
@@ -836,18 +927,33 @@ function parseMtrText(text, area) {
   };
   var elemKeys = Object.keys(elemAliases).sort(function(a,b){ return b.length - a.length; });
 
+  // Range validation — reject physically impossible values
+  var elemRanges = {
+    C: [0, 0.25], MN: [0, 2.0], P: [0, 0.10], S: [0, 0.08], SI: [0, 1.0],
+    CU: [0, 1.0], NI: [0, 1.0], CR: [0, 1.5], MO: [0, 0.5], V: [0, 0.15],
+    CB: [0, 0.05], NB: [0, 0.05], SN: [0, 0.05], B: [0, 0.005], TI: [0, 0.05],
+    N: [0, 0.02], CA: [0, 0.01], AL: [0, 0.1], ZR: [0, 0.01],
+    CE: [0, 1.0], PCM: [0, 0.5], CI: [0, 20]
+  };
+
+  function validValue(elem, val) {
+    var r = elemRanges[elem.toUpperCase()];
+    if (!r) return true;
+    var v = parseFloat(val);
+    return v >= r[0] && v <= r[1];
+  }
+
   function findLabelValuePairs(sourceText) {
     var out = {};
     var re = new RegExp('\\b(' + elemKeys.join('|') + ')\\b\\s*[:\\-]?\\s*(\\d{1,2}\\.\\d{2,4})\\s*%?', 'gi');
     var m;
     while ((m = re.exec(sourceText)) !== null) {
       var key = elemAliases[m[1].toUpperCase()];
-      if (key && out[key] === undefined) out[key] = m[2];
+      if (key && out[key] === undefined && validValue(key, m[2])) out[key] = m[2];
     }
     return out;
   }
 
-  // Strategy B: table header row of element symbols followed shortly after by a row of decimal numbers (Nucor/Atlas-style dense tables)
   function findTableRow(sourceText) {
     var out = {};
     var headerRe = new RegExp('((?:\\b(?:' + elemKeys.join('|') + ')\\b[\\s,]*){3,})', 'i');
@@ -861,12 +967,11 @@ function parseMtrText(text, area) {
     var count = Math.min(headers.length, nums.length);
     for (var k = 0; k < count; k++) {
       var key = elemAliases[headers[k].toUpperCase()];
-      if (key && out[key] === undefined) out[key] = nums[k];
+      if (key && out[key] === undefined && validValue(key, nums[k])) out[key] = nums[k];
     }
     return out;
   }
 
-  // Split text roughly into two halves around the 2nd heat number (if present) to separate heat 1 / heat 2 chemistry
   var chemAssigned = 0;
   if (heatNums.length >= 2) {
     var idx1 = flat.indexOf(heatNums[0]);
