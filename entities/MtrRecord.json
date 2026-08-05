@@ -1,0 +1,63 @@
+{
+  "properties": {
+    "approvalStatus": {
+      "enum": [
+        "Pending Review",
+        "Approved",
+        "Rejected",
+        "Needs Info"
+      ],
+      "type": "string"
+    },
+    "countryOfOrigin": {
+      "type": "string"
+    },
+    "domesticStatus": {
+      "enum": [
+        "Domestic",
+        "Foreign",
+        "Unknown"
+      ],
+      "type": "string"
+    },
+    "fileName": {
+      "type": "string"
+    },
+    "grade": {
+      "type": "string"
+    },
+    "heatNumber": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "poNumber": {
+      "type": "string"
+    },
+    "processedDate": {
+      "type": "string"
+    },
+    "quantity": {
+      "type": "string"
+    },
+    "reviewedBy": {
+      "type": "string"
+    },
+    "size": {
+      "type": "string"
+    },
+    "specification": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "uploadedDate": {
+      "type": "string"
+    }
+  },
+  "type": "object",
+  "required": [],
+  "name": "MtrRecord"
+}
