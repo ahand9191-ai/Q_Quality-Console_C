@@ -1,0 +1,12 @@
+{
+  "name": "6a6b81c94bc0607c48a32cc0",
+  "version": "1.0.0",
+  "main": "test_mtr.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

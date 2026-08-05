@@ -649,6 +649,95 @@ async function extractMtrData() {
     return;
   }
 
+function parseMtrText(text, area) {
+  var found = [];
+  var norm = text.replace(/\s+/g, ' ');
+
+  // PO Number
+  var poMatch = norm.match(/(?:P\.?\s*O\.?\s*(?:No\.?|Number|#)?|Purchase\s+Order)\s*[:\-]?\s*(\d{4,10})/i);
+  if (poMatch) { document.getElementById('po-number').value = poMatch[1]; found.push('PO Number'); }
+
+  // Mill / Supplier
+  var millMatch = norm.match(/(NUCOR[\-\s]?\w*\s*STEEL\s*(?:CO\.?|COMPANY)?|ARCELORMITTAL[\w\s]*|GERDAU[\w\s]*|SSAB[\w\s]*|STEEL\s+DYNAMICS[\w\s]*|CHARTER\s+STEEL[\w\s]*|EVRAZ[\w\s]*)/i);
+  if (millMatch) { document.getElementById('mill-name').value = millMatch[1].trim().replace(/\s+/g,' '); found.push('Mill/Supplier'); }
+
+  // Heat numbers (avoid picking up length values like "40 FT")
+  var heatMatches = norm.match(/Heat\s*(?:No\.?|Number|#)?\s*[:\-]?\s*(\d{5,7})/gi) || [];
+  var heatNums = [];
+  heatMatches.forEach(function(m) {
+    var num = m.match(/(\d{5,7})/);
+    if (num && heatNums.indexOf(num[1]) === -1) heatNums.push(num[1]);
+  });
+  if (heatNums[0]) { document.getElementById('heat1').value = heatNums[0]; found.push('Heat #1'); }
+  if (heatNums[1]) { document.getElementById('heat2').value = heatNums[1]; found.push('Heat #2'); }
+
+  // Beam / size designation (e.g. W24X76, W14X34.0, HSS8X8X1/2, L4X4X1/2)
+  var sizeMatch = norm.match(/\b([WHLC]\d{1,2}[Xx]\d{1,3}(?:\.\d+)?|HSS\s*\d+(?:\.\d+)?[Xx]\d+(?:\.\d+)?[Xx][\d\/\.]+)\b/);
+  if (sizeMatch) { document.getElementById('beam-type').value = sizeMatch[1].toUpperCase().replace(/\s+/g,''); found.push('Type/Size'); }
+
+  // Quantity (length) — e.g. "40 ft 0 in" or "40'-0\""
+  var qtyMatch = norm.match(/(\d+\s*ft\s*\d*\s*in|\d+'\s*-?\s*\d*\s*\d*\/?\d*")/i);
+  if (qtyMatch) { document.getElementById('quantity').value = qtyMatch[1].trim(); found.push('Quantity'); }
+
+  // Grade/Spec detection — set material type + spec dropdown
+  var specDetected = null, matDetected = null;
+  if (/A709\s*(?:GR(?:ADE)?\.?\s*)?50W|A588.{0,20}50W/i.test(norm)) { specDetected = 'A709-50W'; }
+  else if (/A588/i.test(norm)) { specDetected = 'A588'; }
+  else if (/A992/i.test(norm)) { specDetected = 'A992'; }
+  else if (/A709\s*(?:GR(?:ADE)?\.?\s*)?50\b/i.test(norm)) { specDetected = 'A709-50'; }
+  else if (/A572\s*(?:GR(?:ADE)?\.?\s*)?50/i.test(norm)) { specDetected = 'A572-50'; }
+  else if (/A36\b/i.test(norm)) { specDetected = 'A36'; }
+  else if (/A500\s*(?:GR(?:ADE)?\.?\s*)?B/i.test(norm)) { specDetected = 'A500-B'; matDetected = 'hss-square'; }
+
+  if (sizeMatch && /^HSS/i.test(sizeMatch[1])) matDetected = matDetected || 'hss-square';
+  else if (sizeMatch && /^W/i.test(sizeMatch[1])) matDetected = matDetected || 'beam';
+  else if (sizeMatch && /^L/i.test(sizeMatch[1])) matDetected = matDetected || 'angle';
+  else if (sizeMatch && /^C/i.test(sizeMatch[1])) matDetected = matDetected || 'channel';
+
+  if (matDetected) {
+    document.getElementById('mat-type').value = matDetected;
+    onMaterialChange();
+    found.push('Material Type');
+  }
+  if (specDetected) {
+    var sel = document.getElementById('spec-select');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === specDetected) { sel.value = specDetected; break; }
+    }
+    initChem();
+    found.push('Specification');
+  }
+
+  // Fracture critical / no weld repair flags feed into notes, not required here
+
+  // Chemistry — parse element table. Look for a line containing element symbols as headers
+  // followed by a line of numeric values, per heat.
+  var elemOrder = ['C','Mn','P','S','Si','Cu','Ni','Cr','Mo','V','Cb','Nb','Sn','Ca','Al','N','Ti','B','Zr','CE','Pcm','Ci'];
+  var chemAssigned = 0;
+  heatNums.forEach(function(heatNum, idx) {
+    // Try to find a run of decimal numbers appearing after this heat number in the text
+    var heatIdx = norm.indexOf(heatNum);
+    if (heatIdx === -1) return;
+    var after = norm.slice(heatIdx, heatIdx + 500);
+    var nums = after.match(/\b\d{1,2}\.\d{2,4}\b/g);
+    if (!nums || nums.length < 3) return;
+    var target = idx === 0 ? chem1 : chem2;
+    // Assign sequentially to common element order — best effort
+    var assignCount = Math.min(nums.length, elemOrder.length);
+    for (var j = 0; j < assignCount; j++) {
+      target[elemOrder[j]] = nums[j];
+    }
+    chemAssigned++;
+  });
+  if (chemAssigned > 0) { initChem(); found.push('Chemistry (approximate — verify against highlighted table)'); }
+
+  if (found.length) {
+    area.innerHTML = '<div class="extract-status">Auto-extracted: ' + found.join(', ') + '. Please verify against highlighted regions.</div>';
+  } else {
+    area.innerHTML = '<div class="extract-status warn">Could not auto-detect fields from this document. Please enter data manually using the highlighted regions as a guide.</div>';
+  }
+}
+
   parseMtrText(allText, area);
   if (hlVisible) drawHL();
 }
