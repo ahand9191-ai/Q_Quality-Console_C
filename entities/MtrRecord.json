@@ -1,6 +1,18 @@
 {
   "properties": {
+    "approvalComments": {
+      "type": "string"
+    },
+    "approvalDate": {
+      "type": "string"
+    },
     "approvalStatus": {
+      "enum": [
+        "Pending",
+        "Approved",
+        "Rejected",
+        "Revise"
+      ],
       "type": "string"
     },
     "countryOfOrigin": {
@@ -12,10 +24,19 @@
     "fileName": {
       "type": "string"
     },
+    "fileUrl": {
+      "type": "string"
+    },
     "grade": {
       "type": "string"
     },
     "heatNumber": {
+      "type": "string"
+    },
+    "heatNumber2": {
+      "type": "string"
+    },
+    "materialType": {
       "type": "string"
     },
     "notes": {
@@ -37,7 +58,6 @@
       "type": "string"
     },
     "type": {
-      "description": "Beam designation: W24 = web length, 76 = lbs per foot (e.g. W24x76)",
       "type": "string"
     },
     "uploadedDate": {
