@@ -375,6 +375,11 @@ async function loadPDF(file) {
       try {
         pdfDoc = await pdfjsLib.getDocument({data: new Uint8Array(e.target.result)}).promise;
         curPage = 1;
+        pageContentCache = {};
+        chem1 = {}; chem2 = {}; approvalState = null;
+        document.getElementById('approval-status-area').innerHTML = '';
+        document.getElementById('btn-download').disabled = true;
+        document.getElementById('stamp-canvas').classList.add('hidden');
         document.getElementById('page-count').textContent = pdfDoc.numPages;
         document.getElementById('pdf-bar').classList.remove('hidden');
         document.getElementById('drop-zone').classList.add('hidden');
@@ -382,7 +387,6 @@ async function loadPDF(file) {
         document.getElementById('btn-hl').disabled = false;
         setStep(1);
         await renderPage();
-        // Auto-extract MTR data from text
         await extractMtrData();
       } catch(err) {
         alert('Error loading PDF: ' + err.message);
@@ -394,39 +398,9 @@ async function loadPDF(file) {
   }
 }
 
-// ===== AUTO-EXTRACTION =====
-async function extractMtrData() {
-  var area = document.getElementById('extract-area');
-  area.innerHTML = '<div class="extract-status">Extracting MTR data from document...</div>';
-  var allText = '';
-  try {
-    for (var i = 1; i <= Math.min(pdfDoc.numPages, 5); i++) {
-      var page = await pdfDoc.getPage(i);
-      var tc = await page.getTextContent();
-      var pageText = tc.items.map(function(item) { return item.str; }).join(' ');
-      allText += pageText + '\n';
-    }
-  } catch(err) { allText = ''; }
+// ===== SHARED PAGE CONTENT CACHE (text or OCR) =====
+var pageContentCache = {};
 
-  if (allText.trim().length < 20) {
-    // No embedded text - try OCR for scanned PDFs
-    area.innerHTML = '<div class="extract-status">No embedded text found. Running OCR on scanned document... (10-30 sec)</div>';
-    try {
-      allText = await ocrPdfPages();
-    } catch(err) {
-      area.innerHTML = '<div class="extract-status warn">OCR failed: ' + err.message + '. Please enter MTR data manually.</div>';
-      return;
-    }
-    if (!allText || allText.trim().length < 20) {
-      area.innerHTML = '<div class="extract-status warn">No text could be extracted. Please enter MTR data manually.</div>';
-      return;
-    }
-  }
-
-  parseMtrText(allText, area);
-}
-
-// ===== OCR FALLBACK =====
 async function loadTesseract() {
   if (window.Tesseract) return;
   var s = document.createElement('script');
@@ -438,27 +412,158 @@ async function loadTesseract() {
   });
 }
 
-async function ocrPdfPages() {
+async function ensurePageContent(pageNum, onProgress) {
+  if (pageContentCache[pageNum]) return pageContentCache[pageNum];
+  var page = await pdfDoc.getPage(pageNum);
+  var tc = await page.getTextContent();
+  var textLen = tc.items.map(function(it) { return it.str; }).join('').trim().length;
+  if (textLen >= 15) {
+    pageContentCache[pageNum] = { type: 'text', items: tc.items };
+    return pageContentCache[pageNum];
+  }
   await loadTesseract();
+  var vp = page.getViewport({ scale: 2.5 });
+  var c = document.createElement('canvas');
+  c.width = vp.width; c.height = vp.height;
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  var result = await Tesseract.recognize(c, 'eng', { logger: function(m) {
+    if (onProgress && m.status === 'recognizing text') onProgress(Math.round(m.progress * 100));
+  }});
+  var words = (result.data.words || []).map(function(w) { return { text: w.text, bbox: w.bbox }; });
+  pageContentCache[pageNum] = { type: 'ocr', words: words, ocrScale: 2.5, rawText: result.data.text };
+  return pageContentCache[pageNum];
+}
+
+// Convert cached page content into pixel-positioned words for the given viewport
+function getPixelWords(pageNum, viewport) {
+  var cache = pageContentCache[pageNum];
+  if (!cache) return [];
+  var words = [];
+  if (cache.type === 'text') {
+    cache.items.forEach(function(item) {
+      if (!item.str || !item.str.trim()) return;
+      var tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      var fontHeight = Math.hypot(tx[2], tx[3]) || 10;
+      var width = Math.abs(item.width * viewport.scale) || (item.str.length * fontHeight * 0.5);
+      words.push({ str: item.str, x: tx[4], y: tx[5] - fontHeight, w: width, h: fontHeight });
+    });
+  } else if (cache.type === 'ocr') {
+    var ratio = viewport.scale / cache.ocrScale;
+    cache.words.forEach(function(w) {
+      if (!w.text || !w.text.trim()) return;
+      words.push({ str: w.text, x: w.bbox.x0 * ratio, y: w.bbox.y0 * ratio, w: (w.bbox.x1 - w.bbox.x0) * ratio, h: (w.bbox.y1 - w.bbox.y0) * ratio });
+    });
+  }
+  return words;
+}
+
+function groupLines(words) {
+  var sorted = words.slice().sort(function(a, b) { return a.y - b.y || a.x - b.x; });
+  var lines = [];
+  sorted.forEach(function(w) {
+    var cy = w.y + w.h / 2;
+    var line = null;
+    for (var i = 0; i < lines.length; i++) {
+      if (Math.abs(lines[i].cy - cy) < Math.max(w.h, lines[i].h) * 0.7) { line = lines[i]; break; }
+    }
+    if (!line) { line = { cy: cy, h: w.h, words: [] }; lines.push(line); }
+    line.words.push(w);
+  });
+  lines.forEach(function(l) {
+    l.words.sort(function(a, b) { return a.x - b.x; });
+    l.text = l.words.map(function(w) { return w.str; }).join(' ');
+    l.x = Math.min.apply(null, l.words.map(function(w) { return w.x; }));
+    l.y = Math.min.apply(null, l.words.map(function(w) { return w.y; }));
+    l.x2 = Math.max.apply(null, l.words.map(function(w) { return w.x + w.w; }));
+    l.y2 = Math.max.apply(null, l.words.map(function(w) { return w.y + w.h; }));
+  });
+  return lines;
+}
+
+// Never let length/size values (e.g. "43 ft 0 in") drive a highlight — per standing instruction
+function isLengthText(str) {
+  return /\d+\s*ft\b|\d+\s*in\b|\bLENGTH\b|\d+'\s*-?\s*\d*"?/i.test(str);
+}
+
+function unionRects(rects) {
+  var valid = rects.filter(function(r) { return r; });
+  if (!valid.length) return null;
+  var x = Math.min.apply(null, valid.map(function(r) { return r.x; }));
+  var y = Math.min.apply(null, valid.map(function(r) { return r.y; }));
+  var x2 = Math.max.apply(null, valid.map(function(r) { return r.x + r.w; }));
+  var y2 = Math.max.apply(null, valid.map(function(r) { return r.y + r.h; }));
+  return { x: x, y: y, w: x2 - x, h: y2 - y };
+}
+
+// Find and box the ACTUAL content on the page for each category — no fixed/guessed coordinates
+function computeHighlights(words, lines, canvasW, canvasH) {
+  var out = {};
+
+  var certLines = lines.filter(function(l) { return !isLengthText(l.text) && /CERTIFIED\s+MILL\s+TEST\s+REPORT|Melted\s+and\s+Manufactured|100%\s*Melted|cast\s+and\s+rolled|fully\s+killed/i.test(l.text); });
+  if (certLines.length) out.cert = unionRects(certLines);
+
+  var gradeLines = lines.filter(function(l) { return !isLengthText(l.text) && /ASTM\s*A\d|FRACTURE\s+CRITICAL|NO\s+WELD\s+REPAIR/i.test(l.text); });
+  if (gradeLines.length) out.grade = unionRects(gradeLines);
+
+  var heatHeader = words.find(function(w) { return /^Heat/i.test(w.str) && !isLengthText(w.str); });
+  if (heatHeader) {
+    var cx = heatHeader.x + heatHeader.w / 2;
+    var vals = words.filter(function(w) {
+      if (w === heatHeader || isLengthText(w.str)) return false;
+      var digits = w.str.replace(/[^\d]/g, '');
+      if (digits.length < 4 || digits.length > 7) return false;
+      var wcx = w.x + w.w / 2;
+      return Math.abs(wcx - cx) < Math.max(heatHeader.w * 3, 80) && w.y > heatHeader.y;
+    });
+    out.heat = unionRects([heatHeader].concat(vals));
+  }
+
+  var mechHeader = words.find(function(w) { return /Mechanical/i.test(w.str); });
+  if (mechHeader) {
+    out.mech = { x: mechHeader.x, y: mechHeader.y, w: Math.min(canvasW - mechHeader.x - 10, Math.max(mechHeader.w * 6, 200)), h: Math.min(canvasH - mechHeader.y - 10, 220) };
+  }
+
+  var cvnHeader = words.find(function(w) { return /Charpy/i.test(w.str); });
+  if (cvnHeader) {
+    out.cvn = { x: cvnHeader.x, y: cvnHeader.y, w: Math.min(canvasW - cvnHeader.x - 10, Math.max(cvnHeader.w * 4, 140)), h: Math.min(canvasH - cvnHeader.y - 10, 200) };
+  }
+
+  var chemHeader = words.find(function(w) { return /Chemical/i.test(w.str); });
+  if (!chemHeader) {
+    var elems = words.filter(function(w) { return /^(C|Mn|P|S|Si|Cu|Ni|Cr|Mo|V|Cb|Nb|Sn|CE|Pcm|Ci)$/.test(w.str); });
+    if (elems.length >= 3) chemHeader = unionRects(elems);
+  }
+  if (chemHeader) {
+    out.chem = { x: chemHeader.x, y: chemHeader.y, w: Math.min(canvasW - chemHeader.x - 10, Math.max((chemHeader.w || 300), 260)), h: Math.min(canvasH - chemHeader.y - 10, 220) };
+  }
+
+  return out;
+}
+
+// ===== AUTO-EXTRACTION =====
+async function extractMtrData() {
   var area = document.getElementById('extract-area');
   var allText = '';
-  var pages = Math.min(pdfDoc.numPages, 3);
-  for (var p = 1; p <= pages; p++) {
-    area.innerHTML = '<div class="extract-status">Running OCR... page ' + p + ' of ' + pages + '</div>';
-    var page = await pdfDoc.getPage(p);
-    var vp = page.getViewport({ scale: 2.5 });
-    var c = document.createElement('canvas');
-    c.width = vp.width; c.height = vp.height;
-    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-    var result = await Tesseract.recognize(c, 'eng', { logger: function(m) {
-      if (m.status === 'recognizing text') {
-        var pct = Math.round(m.progress * 100);
-        area.innerHTML = '<div class="extract-status">OCR page ' + p + '/' + pages + '... ' + pct + '%</div>';
+  var pagesToScan = Math.min(pdfDoc.numPages, 5);
+  for (var i = 1; i <= pagesToScan; i++) {
+    area.innerHTML = '<div class="extract-status">Reading page ' + i + ' of ' + pagesToScan + '...</div>';
+    try {
+      var content = await ensurePageContent(i, function(pct) {
+        area.innerHTML = '<div class="extract-status">OCR page ' + i + '/' + pagesToScan + '... ' + pct + '%</div>';
+      });
+      if (content.type === 'text') {
+        allText += content.items.map(function(it) { return it.str; }).join(' ') + '\n';
+      } else if (content.type === 'ocr') {
+        allText += (content.rawText || '') + '\n';
       }
-    }});
-    allText += result.data.text + '\n';
+    } catch (err) { /* skip unreadable page */ }
   }
-  return allText;
+  if (!allText || allText.trim().length < 15) {
+    area.innerHTML = '<div class="extract-status warn">No text could be extracted from this document. Please enter MTR data manually.</div>';
+    return;
+  }
+  parseMtrText(allText, area);
+  if (hlVisible) drawHL();
 }
 
 // ===== PARSE MTR TEXT =====
@@ -553,7 +658,7 @@ async function renderPage() {
   await page.render({canvasContext: c.getContext('2d'), viewport: vp}).promise;
   document.getElementById('page-num').textContent = curPage;
   document.getElementById('zoom-level').textContent = Math.round(scale/1.5*100) + '%';
-  if (hlVisible) drawHL();
+  if (hlVisible) await drawHL();
   if (approvalState) drawStamp();
 }
 function prevPage() { if (curPage>1) { curPage--; renderPage(); } }
@@ -561,10 +666,11 @@ function nextPage() { if (pdfDoc && curPage<pdfDoc.numPages) { curPage++; render
 function zoomIn() { scale *= 1.2; renderPage(); }
 function zoomOut() { scale /= 1.2; renderPage(); }
 
-// ===== HIGHLIGHTS =====
-function drawHL() {
+// ===== HIGHLIGHTS (dynamic, content-aware — finds the real text on the page) =====
+async function drawHL() {
   var ov = document.getElementById('hl-overlay');
   ov.innerHTML = '';
+  if (!pdfDoc) return;
   var c = document.getElementById('pdf-canvas');
   var wrap = document.getElementById('pdf-wrap');
   var cr = c.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
@@ -572,17 +678,25 @@ function drawHL() {
   ov.style.top = (cr.top - wr.top + wrap.scrollTop) + 'px';
   ov.style.width = c.width + 'px';
   ov.style.height = c.height + 'px';
-  var act = {};
-  document.querySelectorAll('.hl-chip.active').forEach(function(c) { act[c.dataset.area] = true; });
-  if (curPage === 1) {
-    if (act.cert) addHL(50, 50, c.width-100, 120, 'cert', 'Certification');
-    if (act.grade) addHL(50, 180, 300, 40, 'grade', 'Grade/Spec');
-  }
-  if (curPage >= 2) {
-    if (act.heat) addHL(50, 80, 200, 30, 'heat', 'Heat #');
-    if (act.chem) addHL(c.width*0.55, 150, c.width*0.43, 200, 'chem', 'Chemistry');
-    if (act.cvn) addHL(c.width*0.30, 150, c.width*0.20, 80, 'cvn', 'CVN');
-    if (act.mech) addHL(c.width*0.05, 150, c.width*0.20, 100, 'mech', 'Mechanical');
+
+  try {
+    await ensurePageContent(curPage);
+    var page = await pdfDoc.getPage(curPage);
+    var viewport = page.getViewport({scale: scale});
+    var words = getPixelWords(curPage, viewport);
+    var lines = groupLines(words);
+    var hl = computeHighlights(words, lines, c.width, c.height);
+
+    var act = {};
+    document.querySelectorAll('.hl-chip.active').forEach(function(chip) { act[chip.dataset.area] = true; });
+    var LABELS = {heat:'Heat #', grade:'Grade/Spec', chem:'Chemistry', cvn:'CVN', mech:'Mechanical', cert:'Certification'};
+    Object.keys(hl).forEach(function(key) {
+      if (!act[key] || !hl[key]) return;
+      var box = hl[key];
+      addHL(box.x, box.y, box.w, box.h, key, LABELS[key]);
+    });
+  } catch(err) {
+    // If content couldn't be read for highlighting, fail silently — extraction status area already reports issues
   }
 }
 function addHL(x,y,w,h,type,label) {
@@ -599,11 +713,12 @@ function addHL(x,y,w,h,type,label) {
 function toggleHighlights() {
   hlVisible = !hlVisible;
   document.getElementById('hl-overlay').style.display = hlVisible ? 'block' : 'none';
+  if (hlVisible) drawHL();
 }
-document.addEventListener('click', function(e) {
+document.addEventListener('click', async function(e) {
   if (e.target.classList.contains('hl-chip')) {
     e.target.classList.toggle('active');
-    if (hlVisible) drawHL();
+    if (hlVisible) await drawHL();
   }
 });
 
