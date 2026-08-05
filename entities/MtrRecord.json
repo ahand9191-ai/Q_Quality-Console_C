@@ -1,23 +1,12 @@
 {
   "properties": {
     "approvalStatus": {
-      "enum": [
-        "Pending Review",
-        "Approved",
-        "Rejected",
-        "Needs Info"
-      ],
       "type": "string"
     },
     "countryOfOrigin": {
       "type": "string"
     },
     "domesticStatus": {
-      "enum": [
-        "Domestic",
-        "Foreign",
-        "Unknown"
-      ],
       "type": "string"
     },
     "fileName": {
@@ -44,13 +33,11 @@
     "reviewedBy": {
       "type": "string"
     },
-    "size": {
-      "type": "string"
-    },
     "specification": {
       "type": "string"
     },
     "type": {
+      "description": "Beam designation: W24 = web length, 76 = lbs per foot (e.g. W24x76)",
       "type": "string"
     },
     "uploadedDate": {
