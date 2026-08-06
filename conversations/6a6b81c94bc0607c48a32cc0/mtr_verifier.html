@@ -1631,7 +1631,7 @@ function parseMtrText(text, area, allOcrWords) {
 
   // Strategy 1: GRADE label parsing (most reliable for scanned MTRs)
   // Handles "GRADE: ASTM A709-21 Gr50W" format
-  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})([Ww]?)/i);
+  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})\s*([WwBbCc]?)\b/i);
   if (gradeLabelMatch) {
     var specNum = gradeLabelMatch[2];
     var gradeNum = gradeLabelMatch[3];
@@ -1652,7 +1652,11 @@ function parseMtrText(text, area, allOcrWords) {
     } else if (specNum === '709') {
       specDetected = 'A709-50';
     } else if (specNum === '500') {
-      specDetected = gradeNum === 'C' ? 'A500-C' : 'A500-B';
+      // A500 Grade B or C — grade letter captured in isW position
+      var gradeLetter = gradeLabelMatch[4] ? gradeLabelMatch[4].toUpperCase() : '';
+      if (gradeLetter === 'C') specDetected = 'A500-C';
+      else if (gradeLetter === 'B') specDetected = 'A500-B';
+      else specDetected = gradeNum === 'C' ? 'A500-C' : 'A500-B';
     }
   }
 
@@ -1695,17 +1699,21 @@ function parseMtrText(text, area, allOcrWords) {
       if (specSelect.options[i].value === specDetected) { specSelect.selectedIndex = i; break; }
     }
     specSelect.dataset.detected = '1';
-    onMaterialChange();
     found.push('Specification (' + specDetected + ')');
   }
 
   // ========== STEP 3: MATERIAL TYPE ==========
   var matType = template.products[0] || null;
   if (/\bW\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
-  else if (/\bC\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'channel';
-  else if (/\bL\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'angle';
-  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE/i.test(flat) ? 'hss-square' : 'hss-round';
-  else if (/PLATE|THICK|\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
+  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
+  else if (/\bCHANNEL\b/i.test(flat)) matType = 'channel';
+  else if (/\bANGLE\b/i.test(flat)) matType = 'angle';
+  else if (/\bPLATE\b/i.test(flat)) matType = 'plate';
+  else if (/\bFLAT\s*BAR\b/i.test(flat)) matType = 'flatbar';
+  else if (/\bL\s*\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'angle';
+  else if (/\bC\s*\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'channel';
+  else if (template.products.indexOf('plate') !== -1 && /PLATE|THICK|\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
+  else if (!matType && /\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
   if (matType) {
     var matSelect = document.getElementById('mat-type');
     for (var i = 0; i < matSelect.options.length; i++) {
@@ -1766,12 +1774,20 @@ function parseMtrText(text, area, allOcrWords) {
   }
 
   // ========== STEP 7: PO NUMBER ==========
-  var poMatch = flat.match(/\b(?:P\.?O\.?|PURCHASE\s+ORDER)\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-]{2,19})/i);
-  if (poMatch) {
-    var poVal = poMatch[1].trim();
-    if (!/^(BOX|BOX\d|N\/A|NONE|sma|ured)$/i.test(poVal)) {
-      document.getElementById('po-number').value = poVal;
+  // PO extraction — strict: only short alphanumeric PO numbers
+  var poPatterns = [
+    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*(\d{3,10})/i,
+    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}-\d{3,8})/i,
+    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}\d{3,8})/i,
+    /CUSTOMER\s+P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{3,10})/i,
+    /ORDER\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z]{2,5}-?\d{3,8})/i,
+  ];
+  for (var pi = 0; pi < poPatterns.length; pi++) {
+    var poMatch = flat.match(poPatterns[pi]);
+    if (poMatch) {
+      document.getElementById('po-number').value = poMatch[1].trim();
       found.push('PO Number');
+      break;
     }
   }
 
@@ -1793,12 +1809,13 @@ function parseMtrText(text, area, allOcrWords) {
 
   var chemWarnings = [];
 
-  // Table-aware chemistry extraction with mill template ranges
+  var chemFoundPushed = false;
   if (allOcrWords.length > 0) {
     var tblChem = extractChemFromWords(allOcrWords, template);
     if (Object.keys(tblChem).length >= 3) {
       Object.assign(chem1, tblChem);
       found.push('Chemistry (' + Object.keys(tblChem).length + ' elements — verify)');
+      chemFoundPushed = true;
     }
   }
 
@@ -1848,7 +1865,8 @@ function parseMtrText(text, area, allOcrWords) {
     return out;
   }
 
-  if (Object.keys(chem1).length < 3) {
+  // Always run flat-text fallback to fill gaps from table-aware extraction
+  {
     if (heatNums.length >= 2) {
       var idx1 = flat.indexOf(heatNums[0]);
       var idx2 = flat.indexOf(heatNums[1]);
@@ -1861,7 +1879,7 @@ function parseMtrText(text, area, allOcrWords) {
         for (var ek2 in v2) { if (!chem2[ek2] && validValue(ek2, v2[ek2])) chem2[ek2] = v2[ek2]; }
       }
     }
-    if (Object.keys(chem1).length < 3) {
+    {
       var v = findLabelValuePairs(flat);
       if (Object.keys(v).length < 2) v = findTableRow(flat);
       for (var evk in v) { if (!chem1[evk] && validValue(evk, v[evk])) chem1[evk] = v[evk]; }
