@@ -672,6 +672,25 @@ async function extractMtrData() {
     }
   }
 
+  // Image preprocessing for OCR: grayscale + contrast + binarize
+  function preprocessForOCR(canvas) {
+    var ctx = canvas.getContext('2d');
+    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var d = imgData.data;
+    // Grayscale + contrast enhancement
+    var contrast = 1.5; // boost contrast
+    var intercept = -20;
+    for (var i = 0; i < d.length; i += 4) {
+      var gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+      var val = Math.max(0, Math.min(255, gray * contrast + intercept));
+      // Binarize at threshold
+      d[i] = d[i+1] = d[i+2] = val > 128 ? 255 : 0;
+      d[i+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas;
+  }
+
   // OCR pass for scanned pages using Tesseract.js (works over http/https — Web Workers only fail on file://)
   if (isScanned) {
     var ocrText = '';
@@ -732,6 +751,107 @@ async function extractMtrData() {
   }
 
   parseMtrText(allText, area);
+
+  // ========== ADAPTIVE OCR RETRY ==========
+  // If key fields (heat, spec, size) are ALL missing after first pass, retry at higher scale
+  if (isScanned && !window.__ocrRetried) {
+    window.__ocrRetried = true;
+    var heatVal = document.getElementById('heat1').value;
+    var specVal = document.getElementById('spec-select').value;
+    var sizeVal = document.getElementById('beam-type').value;
+    var specMissing = (specVal === 'A992' && !document.getElementById('spec-select').dataset.detected);
+    var missingCount = (!heatVal ? 1 : 0) + (specMissing ? 1 : 0) + (!sizeVal ? 1 : 0);
+    var needsRetry = missingCount >= 1;
+    if (needsRetry) {
+      area.innerHTML = '<div class="extract-status">Re-scanning at higher resolution for better accuracy...</div>';
+      try {
+        var retryText = '';
+        for (var rp = 1; rp <= numPages; rp++) {
+          if (!pageContentCache[rp] || pageContentCache[rp].type !== 'ocr') continue;
+          var rpage = await pdfDoc.getPage(rp);
+          var rscale = 6.0;
+          var rvp = rpage.getViewport({ scale: rscale });
+          var rcanvas = document.createElement('canvas');
+          rcanvas.width = rvp.width; rcanvas.height = rvp.height;
+          await rpage.render({ canvasContext: rcanvas.getContext('2d'), viewport: rvp }).promise;
+          // Gentle preprocessing for retry: grayscale + mild contrast only (no binarization)
+          var rctx = rcanvas.getContext('2d');
+          var rImgData = rctx.getImageData(0, 0, rcanvas.width, rcanvas.height);
+          var rd = rImgData.data;
+          for (var ri = 0; ri < rd.length; ri += 4) {
+            var gray = 0.299 * rd[ri] + 0.587 * rd[ri+1] + 0.114 * rd[ri+2];
+            var val = Math.max(0, Math.min(255, (gray - 128) * 1.3 + 128));
+            rd[ri] = rd[ri+1] = rd[ri+2] = val;
+          }
+          rctx.putImageData(rImgData, 0, 0);
+          var rresult = await Tesseract.recognize(rcanvas, 'eng', {
+            logger: function(m) {
+              if (m.status === 'recognizing text') {
+                area.innerHTML = '<div class="extract-status">Re-scanning page ' + rp + ' at 6x: ' + Math.round((m.progress||0)*100) + '%</div>';
+              }
+            }
+          });
+          var rText = (rresult && rresult.data && rresult.data.text) || '';
+          var rWordText = '';
+          if (rresult && rresult.data && rresult.data.words) {
+            rWordText = rresult.data.words.filter(function(w) { return w.text; }).map(function(w) { return w.text; }).join(' ');
+          }
+          retryText += rText + '\n';
+          if (rWordText.length > rText.length * 1.1) retryText += rWordText + '\n';
+          // Update word cache for highlighting with new higher-res data
+          var rOcrWords = [];
+          if (rresult && rresult.data && rresult.data.words) {
+            rresult.data.words.forEach(function(w) {
+              if (!w.text || !w.bbox) return;
+              rOcrWords.push({ str: w.text, x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 });
+            });
+          }
+          pageContentCache[rp] = { type: 'ocr', words: rOcrWords, canvasW: rcanvas.width, canvasH: rcanvas.height };
+        }
+        if (retryText.trim().length > allText.trim().length) {
+          // Merge: combine first-pass text with retry text for richer parsing
+          var mergedText = allText + '\n' + retryText;
+          // Save first-pass values before re-parsing with merged text
+          var savedHeat = document.getElementById('heat1').value;
+          var savedHeat2 = document.getElementById('heat2').value;
+          var savedSize = document.getElementById('beam-type').value;
+          var savedMill = document.getElementById('mill-name').value;
+          var savedPO = document.getElementById('po-number').value;
+          var savedOrigin = document.getElementById('country-origin').value;
+          var savedSpec = document.getElementById('spec-select').value;
+          var savedSpecDetected = document.getElementById('spec-select').dataset.detected;
+          // Re-parse with merged text (first pass + retry)
+          allText = mergedText;
+          parseMtrText(allText, area);
+          // Restore first-pass values where retry didn't find anything better
+          var newHeat = document.getElementById('heat1').value;
+          if (savedHeat && (!newHeat || savedHeat === newHeat)) {
+            document.getElementById('heat1').value = savedHeat;
+          }
+          if (savedHeat2) document.getElementById('heat2').value = savedHeat2;
+          if (savedSize && !document.getElementById('beam-type').value) {
+            document.getElementById('beam-type').value = savedSize;
+          }
+          if (savedMill && !document.getElementById('mill-name').value) {
+            document.getElementById('mill-name').value = savedMill;
+          }
+          if (savedPO && !document.getElementById('po-number').value) {
+            document.getElementById('po-number').value = savedPO;
+          }
+          if (savedOrigin && !document.getElementById('country-origin').value) {
+            document.getElementById('country-origin').value = savedOrigin;
+          }
+          if (savedSpecDetected && !document.getElementById('spec-select').dataset.detected) {
+            document.getElementById('spec-select').value = savedSpec;
+            document.getElementById('spec-select').dataset.detected = savedSpecDetected;
+          }
+        }
+      } catch(retryErr) {
+        console.warn('Retry OCR failed:', retryErr);
+      }
+    }
+  }
+
   if (hlVisible) await drawHL();
 }
 
@@ -881,6 +1001,7 @@ function parseMtrText(text, area) {
 
   if (specDetected) {
     var sel = document.getElementById('spec-select');
+    sel.dataset.detected = 'true';
     for (var si = 0; si < sel.options.length; si++) {
       if (sel.options[si].value === specDetected) { sel.value = specDetected; break; }
     }
