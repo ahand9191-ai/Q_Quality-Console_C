@@ -695,8 +695,17 @@ async function extractMtrData() {
         });
 
         var pageOcrText = (result && result.data && result.data.text) || '';
+        // Also build text from word list (more complete — result.data.text sometimes misses words)
+        var ocrWordText = '';
+        if (result && result.data && result.data.words) {
+          ocrWordText = result.data.words.filter(function(w) { return w.text; }).map(function(w) { return w.text; }).join(' ');
+        }
         ocrText += pageOcrText + '\n';
         allText += pageOcrText + '\n';
+        // Append word text as supplement if it's significantly longer (catches missed words)
+        if (ocrWordText.length > pageOcrText.length * 1.1) {
+          allText += ocrWordText + '\n';
+        }
 
         var ocrWords = [];
         if (result && result.data && result.data.words) {
@@ -744,7 +753,7 @@ function parseMtrText(text, area) {
     var raw = hm[1];
     var val = raw.replace(/t/gi, '1').replace(/I/g, '1').replace(/o/gi, '0').replace(/O/g, '0').replace(/[^A-Z0-9]/gi, '');
     var digitCount = (val.match(/\d/g) || []).length;
-    if (val.length >= 5 && val.length <= 12 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
+    if (val.length >= 5 && val.length <= 14 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
       // Exclude numbers that appear after weight/qty labels
       var ctx = flat.substring(Math.max(0, hm.index - 25), hm.index);
       if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total|Order|Load|Tally|Phone|ZIP|Cert\b|BOL\b|Material|Sales|Mill|Page/i.test(ctx)) {
@@ -776,7 +785,7 @@ function parseMtrText(text, area) {
 
   // Strategy 4: Any standalone 6-7 digit number near "heat" or "slab" keyword (fuzzy)
   if (heatNums.length === 0) {
-    var fuzzyHeatRe = /(\d{6,7})(?=[^0-9])/g;
+    var fuzzyHeatRe = /\b(\d{6,8})\b/g;
     while ((hm = fuzzyHeatRe.exec(flat)) !== null) {
       var ctx2 = flat.substring(Math.max(0, hm.index - 50), hm.index + 30);
       if (/HEAT|SLAB|MELT|POUR/i.test(ctx2) && heatNums.indexOf(hm[1]) === -1) {
@@ -852,7 +861,7 @@ function parseMtrText(text, area) {
     // A572-50
     if (!specDetected && /\bA572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) specDetected = 'A572-50';
     // A500-B/C (HSS tubing)
-    if (!specDetected && /\bA500[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) specDetected = 'A500-B';
+    if (!specDetected && /\bA500[\d\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) specDetected = 'A500-B';
     // A992: non-weathering beam steel
     if (!specDetected && /\bA992\b/i.test(flat)) specDetected = 'A992';
     // A36: mild steel (check last — it's common in remarks too)
@@ -957,6 +966,21 @@ function parseMtrText(text, area) {
       }
       initChem();
     }
+    // HSS size fallback: if material is HSS but size wasn't found via "HSS" prefix,
+    // try generic "WxHxWall" pattern (OCR may garble the "HSS" label)
+    if (matDetected.indexOf('hss') === 0 && !sizeStr) {
+      // Look for "WxHxWall" near "Material" label (Atlas Tube format)
+      var hssDim = flat.match(/Material\s*:?\s*[~]*\s*(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)\s*[Xx]\s*(\d{3,4}(?:\.\d+)?)/i);
+      if (!hssDim) {
+        // Fallback: any "WxHxWall" pattern with wall = 3-4 digits (e.g. 375 = 0.375")
+        hssDim = flat.match(/(\d{1,3}(?:\.\d+)?)\s*[Xx]\s*(\d{1,3}(?:\.\d+)?)\s*[Xx]\s*(\d{3,4}(?:\.\d+)?)(?![\d.])/);
+      }
+      if (hssDim) {
+        sizeStr = hssDim[1] + 'x' + hssDim[2] + 'x' + hssDim[3];
+        document.getElementById('beam-type').value = sizeStr;
+        if (found.indexOf('Type/Size') === -1) found.push('Type/Size');
+      }
+    }
     found.push('Material Type');
   }
 
@@ -979,6 +1003,10 @@ function parseMtrText(text, area) {
     countryOrigin = 'USA';
   } else if (/BUY\s+AMER/i.test(flat)) {
     countryOrigin = 'USA (Buy America)';
+  }
+  // Fallback: known domestic mills with USA in address (catches OCR-missed origin text)
+  if (!countryOrigin && /USA\b/i.test(flat) && /NUCOR|CMC\s+STEEL|ATLAS\s+TUBE|STEEL\s+ALABAMA|TUSCALOOSA|YAMATO|NIPPON|BERKSHIRE|STEEL\s+DYNAMICS|GALLATIN/i.test(flat)) {
+    countryOrigin = 'USA (domestic mill)';
   }
   if (countryOrigin) {
     document.getElementById('country-origin').value = countryOrigin;
