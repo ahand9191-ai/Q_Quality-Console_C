@@ -992,6 +992,13 @@ function parseMtrText(text, area) {
   }
 
   // ========== PRIORITY 5: MADE IN AMERICA ==========
+  // Different mills phrase this differently:
+  // - "Melted and Manufactured in USA" (Nucor, CMC)
+  // - "100% Melted and Poured in USA" (Atlas Tube)
+  // - "Made in USA" (general)
+  // - "Build America Buy America Act of 2021" (CMC)
+  // - "Buy America Act" / "Build America" (various)
+  // - "domestic" / "produced in the United States" (various)
   var countryOrigin = '';
   if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
     countryOrigin = 'USA (Melted & Manufactured)';
@@ -1000,9 +1007,12 @@ function parseMtrText(text, area) {
   } else if (/MADE\s+IN\s+(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
     countryOrigin = 'USA';
   } else if (/MELT(?:ED|ING).*(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat) || /POUR(?:ED|ING).*(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
-    countryOrigin = 'USA';
-  } else if (/BUY\s+AMER/i.test(flat)) {
-    countryOrigin = 'USA (Buy America)';
+    countryOrigin = 'USA (Melted/Poured)';
+  } else if (/BUILD\s+AMER|BUY\s+AMER/i.test(flat)) {
+    // "Build America Buy America Act", "Buy America Act of 2021", etc.
+    countryOrigin = 'USA (Buy/Build America)';
+  } else if (/PRODUCED\s+IN\s+(?:THE\s+)?(?:U\.?S\.?A|UNITED\s+STATES)|DOMESTIC\s+(?:STEEL|MILL|PRODUCT)/i.test(flat)) {
+    countryOrigin = 'USA (Domestic)';
   }
   // Fallback: known domestic mills with USA in address (catches OCR-missed origin text)
   if (!countryOrigin && /USA\b/i.test(flat) && /NUCOR|CMC\s+STEEL|ATLAS\s+TUBE|STEEL\s+ALABAMA|TUSCALOOSA|YAMATO|NIPPON|BERKSHIRE|STEEL\s+DYNAMICS|GALLATIN/i.test(flat)) {
