@@ -1265,16 +1265,23 @@ function parseMtrText(text, area) {
 
   // ========== STATUS MESSAGE ==========
   var priorityFields = [];
-  if (heatNums[0]) priorityFields.push('Heat#'); else priorityFields.push('Heat# (MISSING)');
-  if (specDetected) priorityFields.push('Spec'); else priorityFields.push('Spec (MISSING)');
-  if (sizeStr) priorityFields.push('Size'); else priorityFields.push('Size (MISSING)');
+  var missingFields = [];
+  if (heatNums[0]) priorityFields.push('Heat#'); else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
+  if (specDetected) priorityFields.push('Spec'); else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
+  if (sizeStr) priorityFields.push('Size'); else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
   if (/CHARPY|CVN/i.test(flat)) priorityFields.push('CVN');
   if (countryOrigin) priorityFields.push('Origin');
 
   if (found.length) {
-    area.innerHTML = '<div class="extract-status"><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values against the highlighted regions.</div>';
+    var msg = '<div class="extract-status"><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values against the highlighted regions.</div>';
+    if (missingFields.length >= 2) {
+      msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields.join(', ') + ' could not be auto-read — document image quality is too low for OCR. Please enter these values manually using the PDF as a reference.</div>';
+    } else if (missingFields.length === 1) {
+      msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields[0] + ' could not be auto-read. Please verify and enter manually if needed.</div>';
+    }
+    area.innerHTML = msg;
   } else {
-    area.innerHTML = '<div class="extract-status warn">Could not auto-detect fields from this document format. Please enter data manually using the highlighted regions as a guide.</div>';
+    area.innerHTML = '<div class="extract-status warn">Document image quality is too low for automated OCR extraction. All fields require manual input — use the PDF as your reference.</div>';
   }
 }
 
