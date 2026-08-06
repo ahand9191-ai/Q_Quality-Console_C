@@ -738,6 +738,11 @@ async function extractMtrData() {
           });
         }
         pageContentCache[p] = { type: 'ocr', words: ocrWords, canvasW: ocrCanvas.width, canvasH: ocrCanvas.height };
+        // Build spatial text from word coordinates (preserves table row/column structure)
+        var spatialText = buildSpatialText(ocrWords, ocrCanvas.width, ocrCanvas.height);
+        if (spatialText.trim().length > allText.trim().length * 0.5) {
+          allText += '\n' + spatialText;
+        }
       }
     } catch(ocrErr) {
       console.warn('OCR failed:', ocrErr);
@@ -807,6 +812,8 @@ async function extractMtrData() {
             });
           }
           pageContentCache[rp] = { type: 'ocr', words: rOcrWords, canvasW: rcanvas.width, canvasH: rcanvas.height };
+          var rSpatialText = buildSpatialText(rOcrWords, rcanvas.width, rcanvas.height);
+          if (rSpatialText.trim().length > 20) retryText += '\n' + rSpatialText;
         }
         if (retryText.trim().length > allText.trim().length) {
           // Merge: combine first-pass text with retry text for richer parsing
@@ -853,6 +860,219 @@ async function extractMtrData() {
   }
 
   if (hlVisible) await drawHL();
+}
+
+// ===== TABLE-AWARE EXTRACTION =====
+// Groups OCR words into rows by y-coordinate, sorts by x within each row.
+// Returns text with proper line breaks preserving table structure.
+function buildSpatialText(words, canvasW, canvasH) {
+  if (!words || words.length === 0) return '';
+  // Filter noise: skip single-char garbage and empty
+  var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
+  if (clean.length === 0) return '';
+  // Sort by y0 (top), then x0 (left)
+  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
+  // Compute median word height for row grouping threshold
+  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
+  var medianH = heights[Math.floor(heights.length / 2)] || 20;
+  var rowThreshold = medianH * 0.6; // words within 60% of font height are same row
+  // Group into rows
+  var rows = [];
+  var curRow = [];
+  var lastY = -9999;
+  for (var i = 0; i < clean.length; i++) {
+    var w = clean[i];
+    if (Math.abs(w.y0 - lastY) > rowThreshold && curRow.length > 0) {
+      rows.push(curRow);
+      curRow = [];
+    }
+    curRow.push(w);
+    lastY = w.y0;
+  }
+  if (curRow.length > 0) rows.push(curRow);
+  // Sort each row by x0, join words, build text with newlines
+  var lines = [];
+  for (var r = 0; r < rows.length; r++) {
+    rows[r].sort(function(a,b) { return a.x0 - b.x0; });
+    // Compute column gaps within row
+    var rowWords = rows[r].map(function(w) { return w.str; });
+    // Detect large x-gaps that indicate column separators
+    var xGaps = [];
+    for (var j = 1; j < rows[r].length; j++) {
+      var gap = rows[r][j].x0 - rows[r][j-1].x1;
+      xGaps.push({ idx: j, gap: gap });
+    }
+    // If gap > 2x median char width, insert a pipe separator
+    var line = rows[r][0].str;
+    for (var j = 1; j < rows[r].length; j++) {
+      var gap = rows[r][j].x0 - rows[r][j-1].x1;
+      var charW = (rows[r][j-1].x1 - rows[r][j-1].x0) / Math.max(rows[r][j-1].str.length, 1);
+      if (gap > charW * 4) {
+        line += ' | ' + rows[r][j].str; // column separator
+      } else {
+        line += ' ' + rows[r][j].str;
+      }
+    }
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+// Detects chemistry table from OCR words: finds header row with element symbols,
+// then maps values from data rows by column x-alignment.
+function extractChemTable(words, canvasW, canvasH) {
+  if (!words || words.length === 0) return {};
+  var ELEMENTS = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Co','W','Pb','Ca','Mg','Ce','Sb','As','Zr','Ta','Bv'];
+  var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
+  if (clean.length === 0) return {};
+  // Group into rows (same logic as buildSpatialText)
+  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
+  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
+  var medianH = heights[Math.floor(heights.length / 2)] || 20;
+  var rowThreshold = medianH * 0.6;
+  var rows = [];
+  var curRow = [];
+  var lastY = -9999;
+  for (var i = 0; i < clean.length; i++) {
+    var w = clean[i];
+    if (Math.abs(w.y0 - lastY) > rowThreshold && curRow.length > 0) { rows.push(curRow); curRow = []; }
+    curRow.push(w);
+    lastY = w.y0;
+  }
+  if (curRow.length > 0) rows.push(curRow);
+  // Sort each row by x0
+  rows.forEach(function(r) { r.sort(function(a,b) { return a.x0 - b.x0; }); });
+  // Find chemistry header row: contains >= 4 element symbols
+  var headerRow = -1;
+  var headerCols = {}; // element -> {x0, x1}
+  for (var r = 0; r < rows.length; r++) {
+    var elemCount = 0;
+    var cols = {};
+    for (var c = 0; c < rows[r].length; c++) {
+      var txt = rows[r][c].str.trim().replace(/[:.\-/]/g,'');
+      if (ELEMENTS.indexOf(txt) !== -1 || ELEMENTS.indexOf(txt.charAt(0).toUpperCase() + txt.slice(1)) !== -1) {
+        var elemKey = txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase();
+        if (txt === 'Cb' || txt === 'cb' || txt === 'NB' || txt === 'Nb') elemKey = 'Cb';
+        if (txt === 'Bv' || txt === 'bv') elemKey = 'V';
+        cols[elemKey] = { x0: rows[r][c].x0, x1: rows[r][c].x1 };
+        elemCount++;
+      }
+    }
+    if (elemCount >= 4) {
+      headerRow = r;
+      headerCols = cols;
+      break;
+    }
+  }
+  if (headerRow === -1) return {};
+  // Find data rows: rows after header that contain numeric values
+  // Use column alignment: value's x-center should align with header's x-center
+  var chem = {};
+  for (var r = headerRow + 1; r < Math.min(headerRow + 5, rows.length); r++) {
+    var dataCount = 0;
+    for (var c = 0; c < rows[r].length; c++) {
+      var word = rows[r][c].str.trim().replace(/%$/, '');
+      // Check if it's a numeric value (with OCR substitutions)
+      var numCheck = word.replace(/o/gi,'0').replace(/I/g,'1').replace(/l/g,'1').replace(/s/g,'5');
+      if (/^\d+\.?\d*$/.test(numCheck) || /^\d*\.\d+$/.test(numCheck)) {
+        // Find which element column this aligns with
+        var valXc = (rows[r][c].x0 + rows[r][c].x1) / 2;
+        var bestElem = null;
+        var bestDist = 99999;
+        for (var elem in headerCols) {
+          var hdrXc = (headerCols[elem].x0 + headerCols[elem].x1) / 2;
+          var dist = Math.abs(valXc - hdrXc);
+          // Tolerance: within 1.5x median char width
+          if (dist < bestDist && dist < medianH * 2.5) {
+            bestDist = dist;
+            bestElem = elem;
+          }
+        }
+        if (bestElem && !chem[bestElem]) {
+          var rawVal = word.replace(/%$/,'');
+          // Skip if this looks like a heat number (6+ digits, no decimal point)
+          if (/^\d{6,}$/.test(rawVal)) continue;
+          // Skip if it's too large to be a chemistry percentage (> 2.0)
+          var numVal = parseFloat(rawVal);
+          if (!isNaN(numVal) && numVal > 2.0) continue;
+          // If no decimal point and value starts with 0, try to restore: "0220" -> "0.0220"
+          // OCR often loses the decimal point — values like 0.022 become 0022 or 022
+          if (rawVal.indexOf('.') === -1 && /^0/.test(rawVal) && rawVal.length > 2) {
+            // Insert decimal after the leading 0: "0220" -> "0.0220", "0890" -> "0.890"
+            rawVal = '0.' + rawVal.substring(1);
+          } else if (rawVal.indexOf('.') === -1 && /^\d{2,4}$/.test(rawVal) && !isNaN(numVal) && numVal > 0 && numVal < 100) {
+            // Short values like "22" or "089" — could be "0.22" or "0.089"
+            // Only do this for small values that look like they lost a decimal
+            rawVal = '0.' + rawVal;
+          }
+          chem[bestElem] = rawVal;
+          dataCount++;
+        }
+      }
+    }
+    if (dataCount === 0 && r > headerRow + 1) break; // no more data rows
+  }
+  return chem;
+}
+
+// Extract label-value pairs using table structure (label on left, value on right, same row)
+function extractLabelValueTable(words, canvasW, canvasH) {
+  if (!words || words.length === 0) return {};
+  var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
+  if (clean.length === 0) return {};
+  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
+  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
+  var medianH = heights[Math.floor(heights.length / 2)] || 20;
+  var rowThreshold = medianH * 0.6;
+  var rows = [];
+  var curRow = [];
+  var lastY = -9999;
+  for (var i = 0; i < clean.length; i++) {
+    var w = clean[i];
+    if (Math.abs(w.y0 - lastY) > rowThreshold && curRow.length > 0) { rows.push(curRow); curRow = []; }
+    curRow.push(w);
+    lastY = w.y0;
+  }
+  if (curRow.length > 0) rows.push(curRow);
+  rows.forEach(function(r) { r.sort(function(a,b) { return a.x0 - b.x0; }); });
+  // For each row, check if left side is a known label and right side is a value
+  var LABELS = {
+    'HEAT': 'heat', 'HEATNO': 'heat', 'HEATNO.': 'heat', 'HEATNUMBER': 'heat',
+    'PONO': 'po', 'PONO.': 'po', 'PONUMBER': 'po', 'CUSTPO': 'po', 'CUSTPO#': 'po', 'CUSTOMERPO': 'po',
+    'SPECIFICATION': 'spec', 'ASTM': 'spec',
+    'DESIGNATION': 'type',
+    'QUANTITY': 'qty',
+    'COUNTRYOFORIGIN': 'origin', 'ORIGIN': 'origin',
+    'SUPPLIER': 'mill',
+    'CHARPY': 'cvn'
+  };
+  var results = {};
+  for (var r = 0; r < rows.length; r++) {
+    if (rows[r].length < 2) continue;
+    // Get left-most word(s) as potential label
+    var leftWords = rows[r].slice(0, Math.min(3, rows[r].length));
+    var labelStr = leftWords.map(function(w) { return w.str.trim().replace(/[:.#-]/g,''); }).join('').toUpperCase().replace(/\s/g,'');
+    var rightWords = rows[r].slice(leftWords.length);
+    var valStr = rightWords.map(function(w) { return w.str.trim(); }).join(' ');
+    // Check label against known patterns
+    for (var label in LABELS) {
+      if (labelStr.indexOf(label) === 0 && labelStr.length >= label.length && valStr.length > 0 && valStr.length < 50) {
+        var key = LABELS[label];
+        if (!results[key]) {
+          // Check x-gap between label and value (should be significant)
+          var lastLabelX = leftWords[leftWords.length-1].x1;
+          var firstValX = rightWords[0].x0;
+          var gap = firstValX - lastLabelX;
+          var charW = (leftWords[0].x1 - leftWords[0].x0) / Math.max(leftWords[0].str.length, 1);
+          if (gap > charW * 1.5 || labelStr.length > 6) {
+            results[key] = { value: valStr, row: r, label: labelStr };
+          }
+        }
+        break;
+      }
+    }
+  }
+  return results;
 }
 
 function parseMtrText(text, area) {
@@ -1242,7 +1462,46 @@ function parseMtrText(text, area) {
   }
 
   var chemAssigned = 0;
-  if (heatNums.length >= 2) {
+
+  // ========== TABLE-AWARE CHEMISTRY EXTRACTION ==========
+  // Use word coordinates to detect chemistry table headers and map values by column alignment
+  // Results are MERGED with flat-text extraction (not replacing) for maximum coverage
+  var tableChem = {};
+  for (var pg = 1; pg <= 5; pg++) {
+    if (!pageContentCache[pg] || pageContentCache[pg].type !== 'ocr') continue;
+    var tblChem = extractChemTable(pageContentCache[pg].words, pageContentCache[pg].canvasW, pageContentCache[pg].canvasH);
+    if (Object.keys(tblChem).length >= 3) {
+      Object.assign(tableChem, tblChem);
+      chemAssigned++;
+      break;
+    }
+  }
+  // Pre-populate chem1 with table-aware results (flat-text extraction may add more)
+  if (Object.keys(tableChem).length > 0) {
+    Object.assign(chem1, tableChem);
+  }
+  // Also try table-aware label-value extraction for header fields
+  if (!pageContentCache.__labelValues) {
+    for (var pg2 = 1; pg2 <= 5; pg2++) {
+      if (!pageContentCache[pg2] || pageContentCache[pg2].type !== 'ocr') continue;
+      var lv = extractLabelValueTable(pageContentCache[pg2].words, pageContentCache[pg2].canvasW, pageContentCache[pg2].canvasH);
+      if (Object.keys(lv).length > 0) {
+        pageContentCache.__labelValues = lv;
+        // Fill missing fields from table-aware extraction
+        if (!heatNums.length && lv.heat) {
+          var heatCandidate = lv.heat.value.replace(/[^A-Za-z0-9]/g,'');
+          if (heatCandidate.length >= 5) { heatNums.push(heatCandidate); }
+        }
+        if (!document.getElementById('po-number').value && lv.po) {
+          document.getElementById('po-number').value = lv.po.value.replace(/\s+/g,' ').trim();
+        }
+        break;
+      }
+    }
+  }
+
+  // Flat-text chemistry extraction — fills gaps from table-aware extraction
+  if (true) {
     var idx1 = flat.indexOf(heatNums[0]);
     var idx2 = flat.indexOf(heatNums[1]);
     if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
@@ -1252,14 +1511,17 @@ function parseMtrText(text, area) {
       var v2 = findLabelValuePairs(seg2); if (Object.keys(v2).length < 2) v2 = findTableRow(seg2);
       Object.assign(chem1, v1);
       Object.assign(chem2, v2);
+      // Merge: only add elements that weren't already found by table-aware extraction
+      for (var ek in v1) { if (!chem1[ek]) chem1[ek] = v1[ek]; }
+      for (var ek2 in v2) { if (!chem2[ek2]) chem2[ek2] = v2[ek2]; }
       if (Object.keys(v1).length) chemAssigned++;
       if (Object.keys(v2).length) chemAssigned++;
     }
-  }
-  if (!chemAssigned) {
-    var v = findLabelValuePairs(flat);
-    if (Object.keys(v).length < 2) v = findTableRow(flat);
-    if (Object.keys(v).length) { Object.assign(chem1, v); chemAssigned++; }
+    if (true) {
+      var v = findLabelValuePairs(flat);
+      if (Object.keys(v).length < 2) v = findTableRow(flat);
+      if (Object.keys(v).length) { for (var evk in v) { if (!chem1[evk]) chem1[evk] = v[evk]; } chemAssigned++; }
+    }
   }
   if (chemAssigned > 0) { initChem(); found.push('Chemistry (auto-detected — verify)'); }
 
