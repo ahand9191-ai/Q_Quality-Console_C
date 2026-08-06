@@ -1357,7 +1357,11 @@ function extractWithTemplate(allWords, allText, millInfo) {
 
   // --- PO NUMBER ---
   var poMatch = flat.match(/\b(?:P\.?O\.?|PURCHASE\s+ORDER)\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9\-]{3,20})/i);
-  if (poMatch) results.poNumber = poMatch[1].trim();
+  if (poMatch) {
+    var poVal = poMatch[1].trim();
+    // Exclude "BOX" (postal box), generic words
+    if (!/^(BOX|BOX\d|N\/A|NONE)$/i.test(poVal)) results.poNumber = poVal;
+  }
 
   // --- CHEMISTRY EXTRACTION ---
   // Use mill's known element list and table-aware extraction
@@ -1386,9 +1390,12 @@ function extractWithTemplate(allWords, allText, millInfo) {
   for (var elem in results.chem1) {
     var val = parseFloat(results.chem1[elem]);
     var ranges = template.chemRanges[elem] || METAL_KNOWLEDGE.validationRanges[elem];
-    if (ranges && !isNaN(val)) {
-      if (val < ranges[0] || val > ranges[1]) {
-        results.warnings.push(elem + '=' + results.chem1[elem] + ' is outside expected range (' + ranges[0] + '-' + ranges[1] + ') — possible OCR error');
+    var vMin, vMax;
+    if (Array.isArray(ranges)) { vMin = ranges[0]; vMax = ranges[1]; }
+    else if (ranges) { vMin = ranges.min; vMax = ranges.max; }
+    if (vMin !== undefined && !isNaN(val)) {
+      if (val < vMin || val > vMax) {
+        results.warnings.push(elem + '=' + results.chem1[elem] + ' is outside expected range (' + vMin + '-' + vMax + ') — possible OCR error');
       }
     }
   }
@@ -1497,10 +1504,13 @@ function extractChemFromWords(words, template) {
           var rawVal = word;
           // Validate against expected range
           var range = ranges[bestElem] || METAL_KNOWLEDGE.validationRanges[bestElem];
+          var rangeMin, rangeMax;
+          if (Array.isArray(range)) { rangeMin = range[0]; rangeMax = range[1]; }
+          else if (range) { rangeMin = range.min; rangeMax = range.max; }
           var numVal = parseFloat(rawVal);
-          if (range && !isNaN(numVal)) {
+          if (rangeMin !== undefined && !isNaN(numVal)) {
             // Skip if outside expected range (likely OCR error or wrong value)
-            if (numVal < range[0] || numVal > range[1]) continue;
+            if (numVal < rangeMin || numVal > rangeMax) continue;
           }
           chem[bestElem] = rawVal;
           dataCount++;
@@ -1528,8 +1538,11 @@ function extractChemFromText(flat, template) {
     else if (allElements.indexOf(elem) === -1) continue;
     var numVal = parseFloat(val);
     var range = ranges[elem] || METAL_KNOWLEDGE.validationRanges[elem];
-    if (range && !isNaN(numVal)) {
-      if (numVal < range[0] || numVal > range[1]) continue;
+    var rMin, rMax;
+    if (Array.isArray(range)) { rMin = range[0]; rMax = range[1]; }
+    else if (range) { rMin = range.min; rMax = range.max; }
+    if (rMin !== undefined && !isNaN(numVal)) {
+      if (numVal < rMin || numVal > rMax) continue;
     }
     if (!chem[elem]) chem[elem] = val;
   }
@@ -1538,88 +1551,208 @@ function extractChemFromText(flat, template) {
 
 
 // ===== MAIN PARSING FUNCTION =====
+// Combines knowledge-base mill identification + proven parsing strategies
 function parseMtrText(text, area, allOcrWords) {
-  var flat = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+  var found = [];
+  var norm = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' \n ').trim();
+  var flat = norm.replace(/\n/g, ' ').replace(/\s+/g, ' ');
   // OCR error corrections
   flat = flat.replace(/\bAS88\b/gi, 'A588').replace(/\bAS36\b/gi, 'A36').replace(/\bA5S8\b/gi, 'A588')
-            .replace(/\bA7038\b/gi, 'A709').replace(/\bA703\b/gi, 'A709');
+            .replace(/\bA7038\b/gi, 'A709').replace(/\bA703\b/gi, 'A709').replace(/\bA7038-21\b/gi, 'A709-21')
+            .replace(/\bA5S8\b/gi, 'A588').replace(/\bAS709\b/gi, 'A709');
 
-  // Collect all OCR words from pageContentCache
-  if (!allOcrWords) {
-    allOcrWords = [];
-    for (var pg = 1; pg <= 10; pg++) {
-      if (pageContentCache[pg] && pageContentCache[pg].type === 'ocr' && pageContentCache[pg].words) {
-        allOcrWords = allOcrWords.concat(pageContentCache[pg].words);
+  // ========== STEP 0: IDENTIFY THE MILL ==========
+  var millInfo = identifyMill(flat);
+  var template = millInfo.template;
+  console.log('[MTR] Mill identified:', millInfo.key);
+
+  // ========== STEP 1: HEAT NUMBERS (most critical) ==========
+  var heatNums = [];
+
+  // Strategy 1: "HEAT NO.:123456" or "HEAT NO 123456" or "HEAT#123456"
+  var heatLabelRe = /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9]{5,12})/gi;
+  var hm;
+  while ((hm = heatLabelRe.exec(flat)) !== null) {
+    var raw = hm[1];
+    var val = raw.replace(/t/gi, '1').replace(/I/g, '1').replace(/o/gi, '0').replace(/O/g, '0').replace(/[^A-Z0-9]/gi, '');
+    var digitCount = (val.match(/\d/g) || []).length;
+    if (val.length >= 5 && val.length <= 14 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
+      var ctx = flat.substring(Math.max(0, hm.index - 25), hm.index);
+      if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total|Order|Load|Tally|Phone|ZIP|Cert\b|BOL\b|Material|Sales|Mill|Page|Box|Address/i.test(ctx)) {
+        heatNums.push(val);
       }
     }
   }
 
-  // ========== STEP 1: IDENTIFY THE MILL ==========
-  var millInfo = identifyMill(flat);
-  console.log('[MTR] Mill identified:', millInfo.key, millInfo.template.name);
+  // Strategy 2: "SLAB NO.:243539" (Nucor Tuscaloosa)
+  if (heatNums.length === 0) {
+    var slabRe = /SLAB\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{5,7})-?\d*/gi;
+    while ((hm = slabRe.exec(flat)) !== null) {
+      if (heatNums.indexOf(hm[1]) === -1) heatNums.push(hm[1]);
+    }
+  }
 
-  // ========== STEP 2: TEMPLATE-GUIDED EXTRACTION ==========
-  var data = extractWithTemplate(allOcrWords, flat, millInfo);
-  console.log('[MTR] Extracted:', JSON.stringify(data.heatNums), data.spec, data.size, 'chem:', Object.keys(data.chem1).length, 'elements');
+  // Strategy 3: Nucor Tuscaloosa "243539-01" format
+  if (heatNums.length === 0) {
+    var tableHeatRe = /(\d{6})\s*-\s*0\d\b/gi;
+    while ((hm = tableHeatRe.exec(flat)) !== null) {
+      var ctx5 = flat.substring(Math.max(0, hm.index - 30), hm.index);
+      if (!/Load\s*Number|Order\s*Number|Material\s*No|Cert(?:ificate)?\s*Number/i.test(ctx5) && heatNums.indexOf(hm[1]) === -1) {
+        heatNums.push(hm[1]);
+      }
+    }
+  }
 
-  // ========== STEP 3: POPULATE FORM FIELDS ==========
-  var found = [];
+  // Strategy 4: Any standalone 6-8 digit number near "heat" or "slab" keyword
+  if (heatNums.length === 0) {
+    var fuzzyHeatRe = /\b(\d{6,8})\b/g;
+    while ((hm = fuzzyHeatRe.exec(flat)) !== null) {
+      var ctx2 = flat.substring(Math.max(0, hm.index - 50), hm.index + 30);
+      if (/HEAT|SLAB|MELT|POUR/i.test(ctx2) && heatNums.indexOf(hm[1]) === -1) {
+        if (!/LBS|WEIGHT|DLVRY|Date|Total|Order|Cert|Phone|ZIP|Load|Tally|BOL|Part|Item|Page|Material|Sales|Mill|Box/i.test(ctx2)) {
+          heatNums.push(hm[1]);
+        }
+      }
+    }
+  }
 
-  // Heat numbers
-  if (data.heatNums.length > 0) {
-    document.getElementById('heat1').value = data.heatNums[0];
+  // Populate heat number fields
+  if (heatNums.length > 0) {
+    document.getElementById('heat1').value = heatNums[0];
     found.push('Heat #1');
-    if (data.heatNums.length > 1) {
-      document.getElementById('heat2').value = data.heatNums[1];
+    if (heatNums.length > 1) {
+      document.getElementById('heat2').value = heatNums[1];
       found.push('Heat #2');
     }
   }
 
-  // Specification
-  if (data.spec) {
-    var specSelect = document.getElementById('spec-select');
-    var specFound = false;
-    for (var i = 0; i < specSelect.options.length; i++) {
-      if (specSelect.options[i].value === data.spec) { specSelect.selectedIndex = i; specFound = true; break; }
-    }
-    if (specFound) {
-      specSelect.dataset.detected = '1';
-      onMaterialChange();
-      found.push('Specification (' + data.spec + ')');
+  // ========== STEP 2: SPECIFICATION ==========
+  var specDetected = null;
+
+  // Strategy 1: GRADE label parsing (most reliable for scanned MTRs)
+  // Handles "GRADE: ASTM A709-21 Gr50W" format
+  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})([Ww]?)/i);
+  if (gradeLabelMatch) {
+    var specNum = gradeLabelMatch[2];
+    var gradeNum = gradeLabelMatch[3];
+    var isW = gradeLabelMatch[4] && gradeLabelMatch[4].toUpperCase() === 'W';
+    // OCR tolerance
+    if (specNum === '703' || (specNum.length >= 3 && specNum.substring(0,3) === '703')) specNum = '709';
+    if (specNum === '5S8' || specNum === '588') specNum = '588';
+    if (isW && (specNum === '709' || specNum === '588')) {
+      specDetected = 'A709-50W';
+    } else if (specNum === '588') {
+      specDetected = 'A588';
+    } else if (specNum === '992') {
+      specDetected = 'A992';
+    } else if (specNum === '36') {
+      specDetected = 'A36';
+    } else if (specNum === '572') {
+      specDetected = 'A572-50';
+    } else if (specNum === '709') {
+      specDetected = 'A709-50';
+    } else if (specNum === '500') {
+      specDetected = gradeNum === 'C' ? 'A500-C' : 'A500-B';
     }
   }
 
-  // Material type
-  if (data.matType) {
+  // Strategy 2: Check against mill template known specs
+  if (!specDetected) {
+    for (var s = 0; s < template.specs.length; s++) {
+      var spec = template.specs[s];
+      // Match spec with flexible format (dash optional, year suffix allowed)
+      var specRe = new RegExp('\\bA' + spec.replace('A','').replace(/-/g, '[-]?\\s*(?:\\d{2}\\s*)?') + '\\b', 'i');
+      if (specRe.test(flat)) {
+        specDetected = spec;
+        break;
+      }
+    }
+  }
+
+  // Strategy 3: Standalone ASTM spec pattern
+  if (!specDetected) {
+    if (/\bA588\b/i.test(flat)) specDetected = 'A588';
+    else if (/\bA709\s*-?\s*50\s*W\b/i.test(flat) || /\bA709\s*-?\s*50W\b/i.test(flat)) specDetected = 'A709-50W';
+    else if (/\bA709\s*-?\s*50\b/i.test(flat)) specDetected = 'A709-50';
+    else if (/\bA992\b/i.test(flat)) specDetected = 'A992';
+    else if (/\bA572\s*-?\s*50\b/i.test(flat)) specDetected = 'A572-50';
+    else if (/\bA36\b/i.test(flat)) specDetected = 'A36';
+    else if (/\bA500\s*-?\s*(?:23\s*)?[BC]\b/i.test(flat)) specDetected = /C\b/i.test(flat.match(/A500[^\n]{0,10}/i)) ? 'A500-C' : 'A500-B';
+  }
+
+  // A709-50W override: if A709-50W appears before A588 in text, prefer 50W
+  if (specDetected === 'A588' || !specDetected) {
+    var a709Idx = flat.search(/\bA709[^\n]{0,20}50W/i);
+    var a588Idx = flat.search(/\bA588\b/i);
+    if (a709Idx !== -1 && a588Idx !== -1 && a709Idx < a588Idx) {
+      specDetected = 'A709-50W';
+    }
+  }
+
+  if (specDetected) {
+    var specSelect = document.getElementById('spec-select');
+    for (var i = 0; i < specSelect.options.length; i++) {
+      if (specSelect.options[i].value === specDetected) { specSelect.selectedIndex = i; break; }
+    }
+    specSelect.dataset.detected = '1';
+    onMaterialChange();
+    found.push('Specification (' + specDetected + ')');
+  }
+
+  // ========== STEP 3: MATERIAL TYPE ==========
+  var matType = template.products[0] || null;
+  if (/\bW\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
+  else if (/\bC\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'channel';
+  else if (/\bL\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'angle';
+  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE/i.test(flat) ? 'hss-square' : 'hss-round';
+  else if (/PLATE|THICK|\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
+  if (matType) {
     var matSelect = document.getElementById('mat-type');
     for (var i = 0; i < matSelect.options.length; i++) {
-      if (matSelect.options[i].value === data.matType) { matSelect.selectedIndex = i; break; }
+      if (matSelect.options[i].value === matType) { matSelect.selectedIndex = i; break; }
     }
     onMaterialChange();
     found.push('Material Type');
   }
 
-  // Size
-  if (data.size) {
-    document.getElementById('beam-type').value = data.size;
+  // ========== STEP 4: SIZE/DESIGNATION ==========
+  var sizeStr = null;
+  if (matType === 'beam') {
+    var beamMatch = flat.match(/W\s*\d+\s*[xX]\s*\d+\.?\d*/i);
+    if (beamMatch) sizeStr = beamMatch[0].replace(/\s+/g, '').replace(/[xX]/, 'x');
+  } else if (matType === 'channel') {
+    var chMatch = flat.match(/C\s*\d+\s*[xX]\s*\d+\.?\d*/i);
+    if (chMatch) sizeStr = chMatch[0].replace(/\s+/g, '').replace(/[xX]/, 'x');
+  } else if (matType === 'angle') {
+    var angMatch = flat.match(/L\s*\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i) || flat.match(/\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i);
+    if (angMatch) sizeStr = angMatch[0].replace(/\s+/g, ' ').trim();
+  } else if (matType === 'plate' || matType === 'flatbar') {
+    var plMatch = flat.match(/\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d+\.?\d*/i);
+    if (plMatch) sizeStr = plMatch[0].trim();
+  } else if (matType && matType.indexOf('hss') !== -1) {
+    var hssMatch = flat.match(/(?:HSS\s*)?\d+\.?\d*\s*[xX]\s*\d+\.?\d*\s*[xX]?\s*\d*\.?\d*/i);
+    if (hssMatch) sizeStr = hssMatch[0].trim();
+  }
+  if (sizeStr) {
+    document.getElementById('beam-type').value = sizeStr;
     found.push('Type/Size');
   }
 
-  // PO number
-  if (data.poNumber) {
-    document.getElementById('po-number').value = data.poNumber;
-    found.push('PO Number');
-  }
-
-  // Country of origin
-  if (data.origin) {
-    document.getElementById('country-origin').value = data.origin;
+  // ========== STEP 5: COUNTRY OF ORIGIN ==========
+  var countryOrigin = null;
+  if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+      /MADE\s+IN\s+(?:U\.?S\.?A\.?|USA|AMERICA)/i.test(flat) ||
+      /PRODUCED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+      /BUY\s+AMERICA/i.test(flat) || /BUILD\s+AMERICA/i.test(flat) ||
+      /100%\s+Melted/i.test(flat) || /Country\s+of\s+Origin:\s*USA/i.test(flat)) {
+    countryOrigin = 'USA';
+    document.getElementById('country-origin').value = countryOrigin;
     found.push('Made in America');
   }
 
-  // Mill name
+  // ========== STEP 6: MILL NAME ==========
   if (millInfo.key !== 'general') {
-    document.getElementById('mill-name').value = millInfo.template.name;
+    document.getElementById('mill-name').value = template.name;
     found.push('Mill/Supplier');
   } else if (/NUCOR/i.test(flat)) {
     document.getElementById('mill-name').value = 'Nucor';
@@ -1632,45 +1765,144 @@ function parseMtrText(text, area, allOcrWords) {
     found.push('Mill/Supplier');
   }
 
-  // CVN
-  if (data.cvnDetected) found.push('CVN (detected — verify highlighted area)');
-
-  // Chemistry
-  if (Object.keys(data.chem1).length > 0) {
-    Object.assign(chem1, data.chem1);
-    Object.assign(chem2, data.chem2);
-    initChem();
-    found.push('Chemistry (' + Object.keys(data.chem1).length + ' elements — verify)');
+  // ========== STEP 7: PO NUMBER ==========
+  var poMatch = flat.match(/\b(?:P\.?O\.?|PURCHASE\s+ORDER)\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-]{2,19})/i);
+  if (poMatch) {
+    var poVal = poMatch[1].trim();
+    if (!/^(BOX|BOX\d|N\/A|NONE|sma|ured)$/i.test(poVal)) {
+      document.getElementById('po-number').value = poVal;
+      found.push('PO Number');
+    }
   }
 
-  // ========== STEP 4: STATUS MESSAGE ==========
+  // ========== STEP 8: CVN ==========
+  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) {
+    found.push('CVN (detected — verify highlighted area)');
+  }
+
+  // ========== STEP 9: CHEMISTRY ==========
+  // Collect all OCR words
+  if (!allOcrWords) {
+    allOcrWords = [];
+    for (var pg = 1; pg <= 10; pg++) {
+      if (pageContentCache[pg] && pageContentCache[pg].type === 'ocr' && pageContentCache[pg].words) {
+        allOcrWords = allOcrWords.concat(pageContentCache[pg].words);
+      }
+    }
+  }
+
+  var chemWarnings = [];
+
+  // Table-aware chemistry extraction with mill template ranges
+  if (allOcrWords.length > 0) {
+    var tblChem = extractChemFromWords(allOcrWords, template);
+    if (Object.keys(tblChem).length >= 3) {
+      Object.assign(chem1, tblChem);
+      found.push('Chemistry (' + Object.keys(tblChem).length + ' elements — verify)');
+    }
+  }
+
+  // Flat-text chemistry fallback (fills gaps)
+  function validValue(elem, val) {
+    var numVal = parseFloat(val);
+    if (isNaN(numVal)) return false;
+    var range = template.chemRanges[elem] || METAL_KNOWLEDGE.validationRanges[elem];
+    var rMin, rMax;
+    if (Array.isArray(range)) { rMin = range[0]; rMax = range[1]; }
+    else if (range) { rMin = range.min; rMax = range.max; }
+    if (rMin !== undefined) {
+      if (numVal < rMin || numVal > rMax) return false;
+    }
+    return true;
+  }
+
+  function findLabelValuePairs(sourceText) {
+    var out = {};
+    var elems = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca'];
+    var re = /\b([CMPSCVNA]\w{0,2})\s*[:\s]+(\d+\.?\d*)/g;
+    var m;
+    while ((m = re.exec(sourceText)) !== null) {
+      var elem = m[1].trim();
+      if (elem === 'Cb' || elem === 'Nb') elem = 'Cb';
+      if (elems.indexOf(elem) === -1) continue;
+      if (validValue(elem, m[2]) && !out[elem]) out[elem] = m[2];
+    }
+    return out;
+  }
+
+  function findTableRow(sourceText) {
+    var out = {};
+    var elems = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca'];
+    var nums = sourceText.match(/\d+\.\d+/g) || sourceText.match(/\d+\.?\d*/g) || [];
+    var elemMatches = sourceText.match(/\b([CMPSCVNA]\w{0,2})\b/g) || [];
+    var validElems = [];
+    for (var i = 0; i < elemMatches.length; i++) {
+      var e = elemMatches[i];
+      if (e === 'Cb' || e === 'Nb') e = 'Cb';
+      if (elems.indexOf(e) !== -1 && validElems.indexOf(e) === -1) validElems.push(e);
+    }
+    for (var k = 0; k < Math.min(validElems.length, nums.length); k++) {
+      var key = validElems[k];
+      if (validValue(key, nums[k]) && !out[key]) out[key] = nums[k];
+    }
+    return out;
+  }
+
+  if (Object.keys(chem1).length < 3) {
+    if (heatNums.length >= 2) {
+      var idx1 = flat.indexOf(heatNums[0]);
+      var idx2 = flat.indexOf(heatNums[1]);
+      if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
+        var seg1 = flat.slice(idx1, idx2);
+        var seg2 = flat.slice(idx2, idx2 + 600);
+        var v1 = findLabelValuePairs(seg1); if (Object.keys(v1).length < 2) v1 = findTableRow(seg1);
+        var v2 = findLabelValuePairs(seg2); if (Object.keys(v2).length < 2) v2 = findTableRow(seg2);
+        for (var ek in v1) { if (!chem1[ek] && validValue(ek, v1[ek])) chem1[ek] = v1[ek]; }
+        for (var ek2 in v2) { if (!chem2[ek2] && validValue(ek2, v2[ek2])) chem2[ek2] = v2[ek2]; }
+      }
+    }
+    if (Object.keys(chem1).length < 3) {
+      var v = findLabelValuePairs(flat);
+      if (Object.keys(v).length < 2) v = findTableRow(flat);
+      for (var evk in v) { if (!chem1[evk] && validValue(evk, v[evk])) chem1[evk] = v[evk]; }
+    }
+    if (Object.keys(chem1).length > 0) {
+      found.push('Chemistry (' + Object.keys(chem1).length + ' elements — verify)');
+    }
+  }
+
+  // Validate chemistry against metallurgical ranges
+  for (var elem in chem1) {
+    if (!validValue(elem, chem1[elem])) {
+      chemWarnings.push(elem + '=' + chem1[elem] + ' outside expected range — removing (likely OCR error)');
+      delete chem1[elem];
+    }
+  }
+
+  if (Object.keys(chem1).length > 0) initChem();
+
+  // ========== STEP 10: STATUS MESSAGE ==========
   var priorityFields = [];
   var missingFields = [];
-  if (data.heatNums.length > 0) priorityFields.push('Heat#');
-  else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
-  if (data.spec) priorityFields.push('Spec');
-  else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
-  if (data.size) priorityFields.push('Size');
-  else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
-  if (data.cvnDetected) priorityFields.push('CVN');
-  if (data.origin) priorityFields.push('Origin');
+  if (heatNums.length > 0) priorityFields.push('Heat#'); else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
+  if (specDetected) priorityFields.push('Spec'); else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
+  if (sizeStr) priorityFields.push('Size'); else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
+  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) priorityFields.push('CVN');
+  if (countryOrigin) priorityFields.push('Origin');
 
-  var msg = '<div class="extract-status"><strong>Mill:</strong> ' + millInfo.template.name + '<br><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values.</div>';
+  var msg = '<div class="extract-status"><strong>Mill:</strong> ' + template.name + '<br><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values.</div>';
 
-  if (data.warnings.length > 0) {
-    msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Metallurgical warnings:</strong><br>' + data.warnings.join('<br>') + '</div>';
+  if (chemWarnings.length > 0) {
+    msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Metallurgical validation:</strong><br>' + chemWarnings.join('<br>') + '</div>';
   }
-
   if (missingFields.length >= 2) {
     msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields.join(', ') + ' could not be auto-read — document image quality is too low for OCR. Please enter these values manually using the PDF as a reference.</div>';
   } else if (missingFields.length === 1) {
     msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields[0] + ' could not be auto-read. Please verify and enter manually if needed.</div>';
   }
-
   if (found.length === 0) {
     msg = '<div class="extract-status warn">Document image quality is too low for automated OCR extraction. All fields require manual input — use the PDF as your reference.</div>';
   }
-
   area.innerHTML = msg;
 }
 
