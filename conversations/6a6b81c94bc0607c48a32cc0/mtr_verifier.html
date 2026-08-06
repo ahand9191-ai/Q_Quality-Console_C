@@ -738,11 +738,7 @@ async function extractMtrData() {
           });
         }
         pageContentCache[p] = { type: 'ocr', words: ocrWords, canvasW: ocrCanvas.width, canvasH: ocrCanvas.height };
-        // Build spatial text from word coordinates (preserves table row/column structure)
-        var spatialText = buildSpatialText(ocrWords, ocrCanvas.width, ocrCanvas.height);
-        if (spatialText.trim().length > allText.trim().length * 0.5) {
-          allText += '\n' + spatialText;
-        }
+        // Word coordinates stored for template-guided extraction
       }
     } catch(ocrErr) {
       console.warn('OCR failed:', ocrErr);
@@ -812,8 +808,6 @@ async function extractMtrData() {
             });
           }
           pageContentCache[rp] = { type: 'ocr', words: rOcrWords, canvasW: rcanvas.width, canvasH: rcanvas.height };
-          var rSpatialText = buildSpatialText(rOcrWords, rcanvas.width, rcanvas.height);
-          if (rSpatialText.trim().length > 20) retryText += '\n' + rSpatialText;
         }
         if (retryText.trim().length > allText.trim().length) {
           // Merge: combine first-pass text with retry text for richer parsing
@@ -862,21 +856,562 @@ async function extractMtrData() {
   if (hlVisible) await drawHL();
 }
 
-// ===== TABLE-AWARE EXTRACTION =====
-// Groups OCR words into rows by y-coordinate, sorts by x within each row.
-// Returns text with proper line breaks preserving table structure.
-function buildSpatialText(words, canvasW, canvasH) {
-  if (!words || words.length === 0) return '';
-  // Filter noise: skip single-char garbage and empty
+// ===== KNOWLEDGE BASE + TEMPLATE-GUIDED EXTRACTION =====
+// ===== MILL TEMPLATE KNOWLEDGE BASE =====
+// Each mill has a deterministic MTR template. These are created in Excel/ERP systems
+// and exported to PDF. The format, field locations, and value patterns are known.
+// This knowledge guides extraction instead of blind OCR parsing.
+
+var MILL_TEMPLATES = {
+  'nucor-yamato': {
+    name: 'Nucor-Yamato Steel',
+    aliases: ['NUCOR-YAMATO', 'NUCOR YAMATO', 'NUCOR\u2010YAMATO'],
+    products: ['beam'],
+    // Document layout zones (as fractions of page height)
+    zones: {
+      header:     { y0: 0.00, y1: 0.08 },  // Company name, logo
+      customer:   { y0: 0.08, y1: 0.18 },  // PO, customer, ship date
+      product:    { y0: 0.18, y1: 0.28 },  // Size, spec, grade, quantity
+      chemistry:  { y0: 0.28, y1: 0.65 },  // Heat numbers + chemistry table
+      cvn:        { y0: 0.65, y1: 0.80 },  // Charpy V-notch results
+      cert:       { y0: 0.80, y1: 1.00 }   // Certification, origin, signature
+    },
+    heatFormat: /^\d{6}$/,
+    heatLabel: 'HEAT',
+    specs: ['A588', 'A709-50W', 'A992', 'A572-50', 'A36'],
+    sizePattern: /W\d+["\s]*[xX]\s*\d+/,
+    sizeFormat: 'W##x## (web depth x lbs/ft)',
+    originPhrases: ['100% Melted and Manufactured in U.S.A.', 'Melted and Manufactured in USA'],
+    // Chemistry elements in the order they appear on Nucor-Yamato MTRs
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb'],
+    // Expected value ranges (metallurgist knowledge — flags OCR errors)
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.40, 1.65], P:  [0.001, 0.04], S:  [0.001, 0.05],
+      Si: [0.10, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.75],
+      V:  [0.00, 0.12], Mo: [0.00, 0.08], Nb: [0.00, 0.05]
+    },
+    cvnFormat: 'table',
+    notes: 'Nucor-Yamato produces W-shape beams. Heat numbers are 6 digits. Chemistry reported as percentages. A588/A709-50W for weathering, A992 for non-weathering.'
+  },
+
+  'nucor-tuscaloosa': {
+    name: 'Nucor Steel Tuscaloosa',
+    aliases: ['NUCOR STEEL TUSCALOOSA', 'NUCOR TUSCALOOSA', 'TUSCALOOSA'],
+    products: ['plate'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.10 },
+      customer:   { y0: 0.10, y1: 0.22 },
+      product:    { y0: 0.22, y1: 0.35 },
+      chemistry:  { y0: 0.35, y1: 0.70 },
+      cvn:        { y0: 0.70, y1: 0.85 },
+      cert:       { y0: 0.85, y1: 1.00 }
+    },
+    heatFormat: /^\d{6}(-\d{2})?$/,
+    heatLabel: 'HEAT/SLAB',
+    specs: ['A588', 'A709-50W', 'A709-50', 'A572-50', 'A36'],
+    sizePattern: /\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d+\.?\d*/,
+    sizeFormat: 'thickness x width x length (inches)',
+    originPhrases: ['Melted and Manufactured in U.S.A.', 'Produced in USA'],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Sn', 'B', 'Ti', 'N'],
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.40, 1.65], P:  [0.001, 0.04], S:  [0.001, 0.05],
+      Si: [0.05, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.75],
+      V:  [0.00, 0.12], Mo: [0.00, 0.08], Nb: [0.00, 0.05], Sn: [0.00, 0.03],
+      B:  [0.000, 0.002], Ti: [0.00, 0.01], N: [0.002, 0.012]
+    },
+    cvnFormat: 'table',
+    notes: 'Nucor Tuscaloosa produces plate steel. Heat numbers are 6 digits, often with -01 slab suffix. Size is thickness x width x length.'
+  },
+
+  'cmc-alabama': {
+    name: 'CMC Steel Alabama',
+    aliases: ['CMC STEEL ALABAMA', 'CMC STEEL', 'CMC'],
+    products: ['angle', 'channel', 'flatbar'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.08 },
+      customer:   { y0: 0.08, y1: 0.18 },
+      product:    { y0: 0.18, y1: 0.30 },
+      chemistry:  { y0: 0.30, y1: 0.70 },
+      cvn:        { y0: 0.70, y1: 0.82 },
+      cert:       { y0: 0.82, y1: 1.00 }
+    },
+    heatFormat: /^\d{7}$/,
+    heatLabel: 'HEAT',
+    specs: ['A709-50W', 'A588', 'A36', 'A572-50'],
+    sizePattern: /L?\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+|C\d+\s*[xX]\s*\d+/,
+    sizeFormat: 'Angle: L##x##x## | Channel: C##x##',
+    originPhrases: ['Melted and Manufactured in USA', 'Made in USA'],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'Mo', 'Cb', 'Sn', 'B', 'Ti', 'N'],
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.40, 1.65], P:  [0.001, 0.04], S:  [0.001, 0.05],
+      Si: [0.05, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.75],
+      Mo: [0.00, 0.08], Cb: [0.00, 0.05], Sn: [0.00, 0.03], B:  [0.000, 0.002],
+      Ti: [0.00, 0.01], N:  [0.002, 0.012]
+    },
+    cvnFormat: 'table',
+    notes: 'CMC Alabama produces angles and channels. Heat numbers are 7 digits. Uses "Cb" for Niobium (Columbium). Size format: L4x3x1/4 for angles, C8x18.75 for channels.'
+  },
+
+  'atlas-tube': {
+    name: 'Atlas Tube (JMC Steel Group)',
+    aliases: ['ATLAS TUBE', 'ATLAS', 'JMC STEEL GROUP', 'JMC'],
+    products: ['hss-square', 'hss-round', 'hss-rectangular'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.08 },
+      customer:   { y0: 0.08, y1: 0.18 },
+      product:    { y0: 0.18, y1: 0.28 },
+      chemistry:  { y0: 0.28, y1: 0.68 },
+      cvn:        { y0: 0.68, y1: 0.80 },
+      cert:       { y0: 0.80, y1: 1.00 }
+    },
+    heatFormat: /^\d{8}$/,
+    heatLabel: 'HEAT',
+    specs: ['A500-B', 'A500-C', 'A1085', 'A513'],
+    sizePattern: /\d+\.?\d*\s*[xX]\s*\d+\.?\d*\s*[xX]*\s*\d*\.?\d*/,
+    sizeFormat: 'width x width x wall (or OD x wall for round)',
+    originPhrases: ['Melted and Manufactured in U.S.A.', 'Country of Origin: USA'],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'Mo', 'V', 'Ti', 'B', 'N', 'Al', 'Ca'],
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.20, 1.65], P:  [0.001, 0.045], S:  [0.001, 0.045],
+      Si: [0.001, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.50],
+      Mo: [0.00, 0.08], V:  [0.00, 0.12], Ti: [0.00, 0.01], B:  [0.000, 0.002],
+      N:  [0.001, 0.012], Al: [0.00, 0.05], Ca: [0.000, 0.005]
+    },
+    cvnFormat: 'none',
+    notes: 'Atlas Tube produces HSS sections. Heat numbers are 8 digits. Size format: width x width x wall (e.g. 10x10x0.375).'
+  },
+
+  'arcelormittal': {
+    name: 'ArcelorMittal',
+    aliases: ['ARCELORMITTAL', 'ARCELOR MITTAL', 'ARCELOR'],
+    products: ['beam', 'plate', 'angle', 'channel'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.10 },
+      customer:   { y0: 0.10, y1: 0.20 },
+      product:    { y0: 0.20, y1: 0.30 },
+      chemistry:  { y0: 0.30, y1: 0.65 },
+      cvn:        { y0: 0.65, y1: 0.82 },
+      cert:       { y0: 0.82, y1: 1.00 }
+    },
+    heatFormat: /^\d{5,8}[A-Z]?$/,
+    heatLabel: 'HEAT',
+    specs: ['A588', 'A709-50W', 'A992', 'A572-50', 'A36'],
+    sizePattern: /W\d+["\s]*[xX]\s*\d+|\d+\.?\d*\s*x\s*\d+\.?\d*/,
+    sizeFormat: 'varies by product',
+    originPhrases: ['Melted and Manufactured in U.S.A.', 'Country of Origin: USA'],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Sn', 'Al', 'B', 'N'],
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.40, 1.65], P:  [0.001, 0.04], S:  [0.001, 0.05],
+      Si: [0.05, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.75],
+      V:  [0.00, 0.12], Mo: [0.00, 0.08], Nb: [0.00, 0.05], Sn: [0.00, 0.03],
+      Al: [0.00, 0.05], B:  [0.000, 0.002], N:  [0.002, 0.012]
+    },
+    cvnFormat: 'table',
+    notes: 'ArcelorMittal produces all structural shapes. Multiple mill locations. Heat numbers vary by location.'
+  },
+
+  'steel-dynamics': {
+    name: 'Steel Dynamics',
+    aliases: ['STEEL DYNAMICS', 'SDI', 'STRUCTURAL STEEL DIVISION'],
+    products: ['beam', 'channel', 'angle', 'flatbar'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.10 },
+      customer:   { y0: 0.10, y1: 0.20 },
+      product:    { y0: 0.20, y1: 0.30 },
+      chemistry:  { y0: 0.30, y1: 0.68 },
+      cvn:        { y0: 0.68, y1: 0.82 },
+      cert:       { y0: 0.82, y1: 1.00 }
+    },
+    heatFormat: /^\d{6}$/,
+    heatLabel: 'HEAT',
+    specs: ['A588', 'A709-50W', 'A992', 'A572-50', 'A36'],
+    sizePattern: /W\d+["\s]*[xX]\s*\d+|C\d+\s*[xX]\s*\d+|L\d+\s*[xX]\s*\d+/,
+    sizeFormat: 'varies by product',
+    originPhrases: ['Melted and Manufactured in U.S.A.', 'Produced in USA'],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Sn', 'B', 'Ti', 'N'],
+    chemRanges: {
+      C:  [0.01, 0.25], Mn: [0.40, 1.65], P:  [0.001, 0.04], S:  [0.001, 0.05],
+      Si: [0.05, 0.50], Cu: [0.00, 0.55], Ni: [0.00, 0.55], Cr: [0.00, 0.75],
+      V:  [0.00, 0.12], Mo: [0.00, 0.08], Nb: [0.00, 0.05], Sn: [0.00, 0.03],
+      B:  [0.000, 0.002], Ti: [0.00, 0.01], N:  [0.002, 0.012]
+    },
+    cvnFormat: 'table',
+    notes: 'Steel Dynamics produces W-shapes, channels, angles. Heat numbers are 6 digits.'
+  },
+
+  'general': {
+    name: 'Unknown Mill',
+    aliases: [],
+    products: [],
+    zones: {
+      header:     { y0: 0.00, y1: 0.12 },
+      customer:   { y0: 0.12, y1: 0.22 },
+      product:    { y0: 0.22, y1: 0.35 },
+      chemistry:  { y0: 0.35, y1: 0.70 },
+      cvn:        { y0: 0.70, y1: 0.85 },
+      cert:       { y0: 0.85, y1: 1.00 }
+    },
+    heatFormat: /^\d{5,8}$/,
+    heatLabel: 'HEAT',
+    specs: [],
+    sizePattern: /.*/,
+    sizeFormat: 'unknown',
+    originPhrases: [],
+    chemElements: ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Sn', 'B', 'Ti', 'N', 'Al', 'Ca'],
+    chemRanges: {
+      C:  [0.01, 0.30], Mn: [0.20, 1.65], P:  [0.001, 0.05], S:  [0.001, 0.05],
+      Si: [0.001, 0.50], Cu: [0.00, 0.60], Ni: [0.00, 0.60], Cr: [0.00, 0.80],
+      V:  [0.00, 0.15], Mo: [0.00, 0.10], Nb: [0.00, 0.06], Sn: [0.00, 0.04],
+      B:  [0.000, 0.003], Ti: [0.00, 0.01], N:  [0.001, 0.015], Al: [0.00, 0.06], Ca: [0.000, 0.006]
+    },
+    cvnFormat: 'any',
+    notes: 'Fallback template for unknown mills.'
+  }
+};
+
+// ===== METALLURGICAL KNOWLEDGE BASE =====
+// Steel mill operator + metallurgist knowledge for validation and context
+
+var METAL_KNOWLEDGE = {
+  // Spec relationships: which specs are weathering vs non-weathering
+  weatheringSpecs: ['A588', 'A709-50W', 'A588-A709-50W'],
+  nonWeatheringSpecs: ['A36', 'A992', 'A572-50', 'A709-50', 'A500-B', 'A500-C'],
+
+  // Grade meanings
+  gradeInfo: {
+    'A36':     { type: 'mild steel',         weathering: false, description: 'Carbon structural steel, general purpose' },
+    'SA36':    { type: 'mild steel',         weathering: false, description: 'ASME version of A36' },
+    'A588':    { type: 'weathering steel',    weathering: true,  description: 'High-strength low-alloy weathering steel (Cu+Cr for patina)' },
+    'A709-50W':{ type: 'weathering bridge',   weathering: true,  description: 'Bridge steel, Grade 50W (weathering)' },
+    'A709-50': { type: 'non-weathering bridge',weathering: false, description: 'Bridge steel, Grade 50 (non-weathering)' },
+    'A992':    { type: 'structural beam',     weathering: false, description: 'Structural steel for W-shapes, non-weathering' },
+    'A572-50': { type: 'HSLA steel',          weathering: false, description: 'High-strength low-alloy, Grade 50' },
+    'A500-B':  { type: 'HSS',                 weathering: false, description: 'Cold-formed welded HSS, Grade B' },
+    'A500-C':  { type: 'HSS',                 weathering: false, description: 'Cold-formed welded HSS, Grade C' },
+    'A1085':   { type: 'HSS',                 weathering: false, description: 'Hot-rolled HSS with tighter tolerances' }
+  },
+
+  // Shape designation rules (how sizes are written)
+  shapeRules: {
+    'beam':      'W + web depth (in) + x + lbs/ft. Example: W24x76 = 24" web depth, 76 lbs/ft',
+    'channel':   'C + web depth (in) + x + lbs/ft. Example: C8x18.75 = 8" depth, 18.75 lbs/ft',
+    'angle':     'L + leg1 + x + leg2 + x + thickness. Example: L4x3x1/4',
+    'plate':     'thickness x width x length (inches). Example: 0.375 x 96 x 240',
+    'flatbar':   'thickness x width (inches). Example: 1/2 x 4',
+    'hss-square':'width x width x wall. Example: 10x10x0.375 or HSS10x10x375',
+    'hss-round': 'OD x wall. Example: 6x0.500 or HSS6x0.500',
+    'pipe':      'NPS + schedule. Example: 6in Sch 40'
+  },
+
+  // Chemistry validation: expected ranges for structural steel (catches OCR errors)
+  // Values outside these ranges indicate OCR misreads, not actual chemistry
+  validationRanges: {
+    C:  { min: 0.01,  max: 0.30,  label: 'Carbon',     typical: '0.05-0.23' },
+    Mn: { min: 0.20,  max: 1.65,  label: 'Manganese',  typical: '0.60-1.35' },
+    P:  { min: 0.001, max: 0.050, label: 'Phosphorus', typical: '0.005-0.035' },
+    S:  { min: 0.001, max: 0.050, label: 'Sulfur',     typical: '0.005-0.030' },
+    Si: { min: 0.001, max: 0.50,  label: 'Silicon',    typical: '0.15-0.40' },
+    Cu: { min: 0.00,  max: 0.60,  label: 'Copper',     typical: '0.20-0.45 (weathering)' },
+    Ni: { min: 0.00,  max: 0.60,  label: 'Nickel',     typical: '0.00-0.45' },
+    Cr: { min: 0.00,  max: 0.80,  label: 'Chromium',   typical: '0.40-0.70 (weathering)' },
+    V:  { min: 0.00,  max: 0.15,  label: 'Vanadium',   typical: '0.01-0.10' },
+    Mo: { min: 0.00,  max: 0.10,  label: 'Molybdenum', typical: '0.00-0.06' },
+    Nb: { min: 0.00,  max: 0.06,  label: 'Niobium',    typical: '0.001-0.04' },
+    Cb: { min: 0.00,  max: 0.06,  label: 'Columbium', typical: '0.001-0.04 (same as Nb)' },
+    Sn: { min: 0.00,  max: 0.04,  label: 'Tin',        typical: '0.005-0.025' },
+    B:  { min: 0.000, max: 0.003, label: 'Boron',      typical: '0.0001-0.0015' },
+    Ti: { min: 0.00,  max: 0.01,  label: 'Titanium',   typical: '0.001-0.005' },
+    N:  { min: 0.001, max: 0.015, label: 'Nitrogen',   typical: '0.005-0.012' },
+    Al: { min: 0.00,  max: 0.06,  label: 'Aluminum',   typical: '0.005-0.04' },
+    Ca: { min: 0.000, max: 0.006, label: 'Calcium',    typical: '0.0002-0.003' }
+  },
+
+  // Carbon Equivalent formula (IIW / AWS)
+  ceFormula: 'CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15',
+  ceLimit: 0.45, // For shapes <= 2" per A709
+
+  // Weathering steel minimum requirements
+  weatheringMin: {
+    Cu: { min: 0.20, desc: 'Copper minimum for weathering patina' },
+    Cr: { min: 0.40, max: 0.70, desc: 'Chromium range for weathering' }
+  },
+
+  // AWS D1.5 Cl 5.4.2 WPS qualification rules
+  wpsRules: {
+    rule1: 'C >= 0.15% — qualifies all grades',
+    rule2: 'C >= 0.12% AND CE >= 0.45% — qualifies all grades',
+    rule3: 'C >= 0.12% but CE < 0.45% — 50W only',
+    rule4: 'C < 0.12% — WPS for 50W only'
+  },
+
+  // How MTRs are created (document knowledge)
+  documentInfo: {
+    creationMethod: 'MTRs are generated by mill ERP/sales software (SAP, custom systems, or Excel templates) and exported to PDF. The layout is deterministic per mill — same template every time.',
+    chemistrySource: 'Chemistry data comes from spectrometer analysis of each heat in the mill lab. Values are percentages by weight.',
+    heatNumberMeaning: 'A heat number identifies a single batch of molten steel. All products from the same heat have identical chemistry.',
+    cvnTesting: 'Charpy V-notch (CVN) testing measures impact toughness at specified temperatures. Required for bridge steel (A709) in zones 1 (70°F), 2 (40°F), or 3 (10°F).',
+    domesticSteel: 'Made in America / Buy America Act compliance requires steel to be both melted AND manufactured in the USA. The MTR must state this explicitly.'
+  }
+};
+
+// ===== MILL IDENTIFICATION =====
+// Identifies which mill produced an MTR from the first ~200 chars of OCR/text
+function identifyMill(text) {
+  var upper = text.substring(0, 500).toUpperCase().replace(/\s+/g, ' ');
+  var bestMatch = 'general';
+  var bestScore = 0;
+
+  for (var key in MILL_TEMPLATES) {
+    if (key === 'general') continue;
+    var template = MILL_TEMPLATES[key];
+    for (var i = 0; i < template.aliases.length; i++) {
+      var alias = template.aliases[i].toUpperCase();
+      if (upper.indexOf(alias) !== -1) {
+        // Earlier in the document = higher confidence
+        var position = upper.indexOf(alias);
+        var score = template.aliases[i].length + (position < 100 ? 10 : 0);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = key;
+        }
+      }
+    }
+  }
+  return { key: bestMatch, template: MILL_TEMPLATES[bestMatch] };
+}
+
+// ===== TEMPLATE-GUIDED EXTRACTION =====
+// Uses the mill template to extract fields from OCR words by their known positions
+function extractWithTemplate(allWords, allText, millInfo) {
+  var template = millInfo.template;
+  var results = {
+    mill: template.name,
+    heatNums: [],
+    spec: null,
+    size: null,
+    grade: null,
+    matType: null,
+    origin: null,
+    poNumber: null,
+    quantity: null,
+    cvnDetected: false,
+    chem1: {},
+    chem2: {},
+    confidence: {},
+    warnings: []
+  };
+
+  var flat = allText.replace(/\s+/g, ' ').trim();
+  var upper = flat.toUpperCase();
+
+  // --- MILL NAME ---
+  results.confidence.mill = 0.95;
+
+  // --- HEAT NUMBERS ---
+  // Use mill-specific heat format and label
+  if (allWords && allWords.length > 0) {
+    // Group words into rows for table-aware extraction
+    var rows = groupWordsIntoRows(allWords);
+    // Find heat number by looking for the heat label, then taking the next number
+    for (var r = 0; r < rows.length; r++) {
+      var rowText = rows[r].map(function(w) { return w.str; }).join(' ').toUpperCase();
+      if (rowText.indexOf(template.heatLabel) !== -1 || /HEAT|MELT|SLAB/i.test(rowText)) {
+        // Look for number in this row or next row
+        for (var c = 0; c < rows[r].length; c++) {
+          var word = rows[r][c].str.replace(/[^\w-]/g, '');
+          var cleaned = cleanOcrNumber(word);
+          if (template.heatFormat.test(cleaned) && results.heatNums.indexOf(cleaned) === -1) {
+            results.heatNums.push(cleaned);
+          }
+        }
+        // Also check next row (value might be below label)
+        if (r + 1 < rows.length && results.heatNums.length === 0) {
+          for (var c2 = 0; c2 < rows[r + 1].length; c2++) {
+            var word2 = rows[r + 1][c2].str.replace(/[^\w-]/g, '');
+            var cleaned2 = cleanOcrNumber(word2);
+            if (template.heatFormat.test(cleaned2) && results.heatNums.indexOf(cleaned2) === -1) {
+              results.heatNums.push(cleaned2);
+            }
+          }
+        }
+      }
+    }
+  }
+  // Fallback: regex on flat text
+  if (results.heatNums.length === 0) {
+    var heatRe = /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9]{5,12})/gi;
+    var hm;
+    while ((hm = heatRe.exec(flat)) !== null) {
+      var raw = hm[1].replace(/[^A-Za-z0-9]/g, '');
+      var cleaned = cleanOcrNumber(raw);
+      if (cleaned.length >= 5 && /^\d{5,8}$/.test(cleaned) && results.heatNums.indexOf(cleaned) === -1) {
+        results.heatNums.push(cleaned);
+      }
+    }
+  }
+  results.confidence.heat = results.heatNums.length > 0 ? 0.9 : 0;
+
+  // --- SPECIFICATION ---
+  // Check against mill's known spec list first
+  for (var s = 0; s < template.specs.length; s++) {
+    var spec = template.specs[s];
+    var specRe = new RegExp('\\b' + spec.replace(/-/g, '[-]?') + '\\b', 'i');
+    if (specRe.test(flat)) {
+      results.spec = spec;
+      results.confidence.spec = 0.95;
+      break;
+    }
+  }
+  // Fallback: search for ASTM/AASHTO pattern
+  if (!results.spec) {
+    var specMatch = flat.match(/\b(?:ASTM\s*)?(?:A|SA)(\d{3})\s*[-/]?\s*(\d{2})?(?:\s*Gr\s*)?(\d{0,2})\s*([Ww]?)\b/i);
+    if (specMatch) {
+      var specNum = specMatch[1];
+      var gradeNum = specMatch[3];
+      var isW = specMatch[4] && specMatch[4].toUpperCase() === 'W';
+      // OCR tolerance: 703 → 709, 588 → 588
+      if (specNum === '703') specNum = '709';
+      if (gradeNum === '50' && isW && (specNum === '709' || specNum === '588')) {
+        results.spec = 'A709-50W';
+      } else if (specNum === '588') {
+        results.spec = 'A588';
+      } else if (specNum === '992') {
+        results.spec = 'A992';
+      } else if (specNum === '36') {
+        results.spec = 'A36';
+      } else if (specNum === '572') {
+        results.spec = 'A572-50';
+      } else if (specNum === '500') {
+        results.spec = gradeNum === 'C' ? 'A500-C' : 'A500-B';
+      }
+      results.confidence.spec = 0.7;
+    }
+  }
+
+  // --- MATERIAL TYPE ---
+  // Use mill's product list and text patterns
+  if (template.products.length > 0) {
+    results.matType = template.products[0];
+  }
+  // Override based on size pattern
+  if (/\bW\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'beam';
+  else if (/\bC\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'channel';
+  else if (/\bL\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'angle';
+  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) results.matType = /SQUARE/i.test(flat) ? 'hss-square' : 'hss-round';
+
+  // --- SIZE ---
+  // Use mill's size pattern
+  if (template.sizePattern) {
+    var sizeMatch = flat.match(template.sizePattern);
+    if (sizeMatch) {
+      results.size = sizeMatch[0].trim();
+      results.confidence.size = 0.85;
+    }
+  }
+  // Fallback size patterns
+  if (!results.size) {
+    var sizePatterns = [
+      /W\d+\s*["\s]*[xX]\s*["\s]*\d+\.?\d*/i,          // W24x76
+      /C\d+\s*[xX]\s*\d+\.?\d*/i,                       // C8x18.75
+      /L\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i,           // L4x3x1/4
+      /\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d+\.?\d*/i,     // 0.375 x 96 x 240
+      /HSS\s*\d+\.?\d*\s*[xX]\s*\d+\.?\d*/i,            // HSS10x10
+      /\d+\.?\d*\s*[xX]\s*\d+\.?\d*\s*[xX]?\s*\d*\.?\d*/i // generic
+    ];
+    for (var sp = 0; sp < sizePatterns.length; sp++) {
+      var sm = flat.match(sizePatterns[sp]);
+      if (sm) {
+        results.size = sm[0].trim();
+        results.confidence.size = 0.7;
+        break;
+      }
+    }
+  }
+
+  // --- COUNTRY OF ORIGIN ---
+  for (var op = 0; op < template.originPhrases.length; op++) {
+    var phrase = template.originPhrases[op];
+    if (upper.indexOf(phrase.toUpperCase()) !== -1) {
+      results.origin = 'USA';
+      results.confidence.origin = 0.95;
+      break;
+    }
+  }
+  // Generic origin detection
+  if (!results.origin) {
+    if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+        /MADE\s+IN\s+(?:U\.?S\.?A\.?|USA|AMERICA)/i.test(flat) ||
+        /PRODUCED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+        /BUY\s+AMERICA/i.test(flat) ||
+        /BUILD\s+AMERICA/i.test(flat)) {
+      results.origin = 'USA';
+      results.confidence.origin = 0.9;
+    }
+  }
+
+  // --- CVN DETECTION ---
+  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) {
+    results.cvnDetected = true;
+    results.confidence.cvn = 0.85;
+  }
+
+  // --- PO NUMBER ---
+  var poMatch = flat.match(/\b(?:P\.?O\.?|PURCHASE\s+ORDER)\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9\-]{3,20})/i);
+  if (poMatch) results.poNumber = poMatch[1].trim();
+
+  // --- CHEMISTRY EXTRACTION ---
+  // Use mill's known element list and table-aware extraction
+  if (allWords && allWords.length > 0) {
+    var chem = extractChemFromWords(allWords, template);
+    if (Object.keys(chem).length >= 3) {
+      results.chem1 = chem;
+      results.confidence.chem = 0.9;
+    }
+  }
+  // Fallback: flat text chemistry
+  if (Object.keys(results.chem1).length < 3) {
+    var flatChem = extractChemFromText(flat, template);
+    if (Object.keys(flatChem).length > 0) {
+      // Merge: fill gaps
+      for (var ek in flatChem) {
+        if (!results.chem1[ek]) results.chem1[ek] = flatChem[ek];
+      }
+      if (Object.keys(results.chem1).length >= 3) {
+        results.confidence.chem = 0.75;
+      }
+    }
+  }
+
+  // --- CHEMISTRY VALIDATION (metallurgist check) ---
+  for (var elem in results.chem1) {
+    var val = parseFloat(results.chem1[elem]);
+    var ranges = template.chemRanges[elem] || METAL_KNOWLEDGE.validationRanges[elem];
+    if (ranges && !isNaN(val)) {
+      if (val < ranges[0] || val > ranges[1]) {
+        results.warnings.push(elem + '=' + results.chem1[elem] + ' is outside expected range (' + ranges[0] + '-' + ranges[1] + ') — possible OCR error');
+      }
+    }
+  }
+
+  return results;
+}
+
+// ===== HELPER FUNCTIONS =====
+
+function cleanOcrNumber(str) {
+  // Common OCR substitutions for numbers
+  return str.replace(/o/gi, '0').replace(/O/g, '0').replace(/l/g, '1').replace(/I/g, '1')
+            .replace(/S/g, '5').replace(/B/g, '8').replace(/[^0-9A-Z\-]/gi, '');
+}
+
+function groupWordsIntoRows(words) {
+  if (!words || words.length === 0) return [];
   var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
-  if (clean.length === 0) return '';
-  // Sort by y0 (top), then x0 (left)
-  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
-  // Compute median word height for row grouping threshold
-  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
+  if (clean.length === 0) return [];
+  clean.sort(function(a, b) { return a.y0 - b.y0 || a.x0 - b.x0; });
+  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a, b) { return a - b; });
   var medianH = heights[Math.floor(heights.length / 2)] || 20;
-  var rowThreshold = medianH * 0.6; // words within 60% of font height are same row
-  // Group into rows
+  var rowThreshold = medianH * 0.6;
   var rows = [];
   var curRow = [];
   var lastY = -9999;
@@ -890,70 +1425,36 @@ function buildSpatialText(words, canvasW, canvasH) {
     lastY = w.y0;
   }
   if (curRow.length > 0) rows.push(curRow);
-  // Sort each row by x0, join words, build text with newlines
-  var lines = [];
-  for (var r = 0; r < rows.length; r++) {
-    rows[r].sort(function(a,b) { return a.x0 - b.x0; });
-    // Compute column gaps within row
-    var rowWords = rows[r].map(function(w) { return w.str; });
-    // Detect large x-gaps that indicate column separators
-    var xGaps = [];
-    for (var j = 1; j < rows[r].length; j++) {
-      var gap = rows[r][j].x0 - rows[r][j-1].x1;
-      xGaps.push({ idx: j, gap: gap });
-    }
-    // If gap > 2x median char width, insert a pipe separator
-    var line = rows[r][0].str;
-    for (var j = 1; j < rows[r].length; j++) {
-      var gap = rows[r][j].x0 - rows[r][j-1].x1;
-      var charW = (rows[r][j-1].x1 - rows[r][j-1].x0) / Math.max(rows[r][j-1].str.length, 1);
-      if (gap > charW * 4) {
-        line += ' | ' + rows[r][j].str; // column separator
-      } else {
-        line += ' ' + rows[r][j].str;
-      }
-    }
-    lines.push(line);
-  }
-  return lines.join('\n');
+  rows.forEach(function(r) { r.sort(function(a, b) { return a.x0 - b.x0; }); });
+  return rows;
 }
 
-// Detects chemistry table from OCR words: finds header row with element symbols,
-// then maps values from data rows by column x-alignment.
-function extractChemTable(words, canvasW, canvasH) {
-  if (!words || words.length === 0) return {};
-  var ELEMENTS = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Co','W','Pb','Ca','Mg','Ce','Sb','As','Zr','Ta','Bv'];
-  var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
-  if (clean.length === 0) return {};
-  // Group into rows (same logic as buildSpatialText)
-  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
-  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
-  var medianH = heights[Math.floor(heights.length / 2)] || 20;
-  var rowThreshold = medianH * 0.6;
-  var rows = [];
-  var curRow = [];
-  var lastY = -9999;
-  for (var i = 0; i < clean.length; i++) {
-    var w = clean[i];
-    if (Math.abs(w.y0 - lastY) > rowThreshold && curRow.length > 0) { rows.push(curRow); curRow = []; }
-    curRow.push(w);
-    lastY = w.y0;
-  }
-  if (curRow.length > 0) rows.push(curRow);
-  // Sort each row by x0
-  rows.forEach(function(r) { r.sort(function(a,b) { return a.x0 - b.x0; }); });
-  // Find chemistry header row: contains >= 4 element symbols
+// Chemistry extraction using word coordinates + mill template
+function extractChemFromWords(words, template) {
+  var ELEMENTS = template.chemElements;
+  var ranges = template.chemRanges;
+  var rows = groupWordsIntoRows(words);
+  if (rows.length < 2) return {};
+
+  // Find chemistry header row: row with 4+ element symbols
   var headerRow = -1;
-  var headerCols = {}; // element -> {x0, x1}
+  var headerCols = {};
+  var allElements = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca','Co','W','Pb','Mg','Ce'];
   for (var r = 0; r < rows.length; r++) {
     var elemCount = 0;
     var cols = {};
     for (var c = 0; c < rows[r].length; c++) {
-      var txt = rows[r][c].str.trim().replace(/[:.\-/]/g,'');
-      if (ELEMENTS.indexOf(txt) !== -1 || ELEMENTS.indexOf(txt.charAt(0).toUpperCase() + txt.slice(1)) !== -1) {
-        var elemKey = txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase();
-        if (txt === 'Cb' || txt === 'cb' || txt === 'NB' || txt === 'Nb') elemKey = 'Cb';
-        if (txt === 'Bv' || txt === 'bv') elemKey = 'V';
+      var txt = rows[r][c].str.trim().replace(/[:.\-\/]/g, '');
+      var elemKey = null;
+      // Exact match
+      if (allElements.indexOf(txt) !== -1) elemKey = txt;
+      else if (allElements.indexOf(txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()) !== -1) {
+        elemKey = txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase();
+      }
+      if (elemKey) {
+        // Normalize Cb/Nb
+        if (elemKey === 'Cb') elemKey = 'Cb';
+        if (elemKey === 'Nb') elemKey = 'Cb';
         cols[elemKey] = { x0: rows[r][c].x0, x1: rows[r][c].x1 };
         elemCount++;
       }
@@ -965,15 +1466,20 @@ function extractChemTable(words, canvasW, canvasH) {
     }
   }
   if (headerRow === -1) return {};
-  // Find data rows: rows after header that contain numeric values
-  // Use column alignment: value's x-center should align with header's x-center
+
+  // Find data rows and map values to columns
   var chem = {};
-  for (var r = headerRow + 1; r < Math.min(headerRow + 5, rows.length); r++) {
+  var heights = words.map(function(w) { return w.y1 - w.y0; }).sort(function(a, b) { return a - b; });
+  var medianH = heights[Math.floor(heights.length / 2)] || 20;
+
+  for (var r = headerRow + 1; r < Math.min(headerRow + 6, rows.length); r++) {
     var dataCount = 0;
     for (var c = 0; c < rows[r].length; c++) {
       var word = rows[r][c].str.trim().replace(/%$/, '');
-      // Check if it's a numeric value (with OCR substitutions)
-      var numCheck = word.replace(/o/gi,'0').replace(/I/g,'1').replace(/l/g,'1').replace(/s/g,'5');
+      // Skip heat numbers (6+ digits, no decimal)
+      if (/^\d{6,}$/.test(word)) continue;
+      // Try to parse as number (with OCR substitutions)
+      var numCheck = word.replace(/o/gi, '0').replace(/I/g, '1').replace(/l/g, '1').replace(/s/g, '5');
       if (/^\d+\.?\d*$/.test(numCheck) || /^\d*\.\d+$/.test(numCheck)) {
         // Find which element column this aligns with
         var valXc = (rows[r][c].x0 + rows[r][c].x1) / 2;
@@ -982,569 +1488,190 @@ function extractChemTable(words, canvasW, canvasH) {
         for (var elem in headerCols) {
           var hdrXc = (headerCols[elem].x0 + headerCols[elem].x1) / 2;
           var dist = Math.abs(valXc - hdrXc);
-          // Tolerance: within 1.5x median char width
           if (dist < bestDist && dist < medianH * 2.5) {
             bestDist = dist;
             bestElem = elem;
           }
         }
         if (bestElem && !chem[bestElem]) {
-          var rawVal = word.replace(/%$/,'');
-          // Skip if this looks like a heat number (6+ digits, no decimal point)
-          if (/^\d{6,}$/.test(rawVal)) continue;
-          // Skip if it's too large to be a chemistry percentage (> 2.0)
+          var rawVal = word;
+          // Validate against expected range
+          var range = ranges[bestElem] || METAL_KNOWLEDGE.validationRanges[bestElem];
           var numVal = parseFloat(rawVal);
-          if (!isNaN(numVal) && numVal > 2.0) continue;
-          // If no decimal point and value starts with 0, try to restore: "0220" -> "0.0220"
-          // OCR often loses the decimal point — values like 0.022 become 0022 or 022
-          if (rawVal.indexOf('.') === -1 && /^0/.test(rawVal) && rawVal.length > 2) {
-            // Insert decimal after the leading 0: "0220" -> "0.0220", "0890" -> "0.890"
-            rawVal = '0.' + rawVal.substring(1);
-          } else if (rawVal.indexOf('.') === -1 && /^\d{2,4}$/.test(rawVal) && !isNaN(numVal) && numVal > 0 && numVal < 100) {
-            // Short values like "22" or "089" — could be "0.22" or "0.089"
-            // Only do this for small values that look like they lost a decimal
-            rawVal = '0.' + rawVal;
+          if (range && !isNaN(numVal)) {
+            // Skip if outside expected range (likely OCR error or wrong value)
+            if (numVal < range[0] || numVal > range[1]) continue;
           }
           chem[bestElem] = rawVal;
           dataCount++;
         }
       }
     }
-    if (dataCount === 0 && r > headerRow + 1) break; // no more data rows
+    if (dataCount === 0 && r > headerRow + 1) break;
   }
   return chem;
 }
 
-// Extract label-value pairs using table structure (label on left, value on right, same row)
-function extractLabelValueTable(words, canvasW, canvasH) {
-  if (!words || words.length === 0) return {};
-  var clean = words.filter(function(w) { return w.str && w.str.trim().length > 0; });
-  if (clean.length === 0) return {};
-  clean.sort(function(a,b) { return a.y0 - b.y0 || a.x0 - b.x0; });
-  var heights = clean.map(function(w) { return w.y1 - w.y0; }).sort(function(a,b){return a-b;});
-  var medianH = heights[Math.floor(heights.length / 2)] || 20;
-  var rowThreshold = medianH * 0.6;
-  var rows = [];
-  var curRow = [];
-  var lastY = -9999;
-  for (var i = 0; i < clean.length; i++) {
-    var w = clean[i];
-    if (Math.abs(w.y0 - lastY) > rowThreshold && curRow.length > 0) { rows.push(curRow); curRow = []; }
-    curRow.push(w);
-    lastY = w.y0;
-  }
-  if (curRow.length > 0) rows.push(curRow);
-  rows.forEach(function(r) { r.sort(function(a,b) { return a.x0 - b.x0; }); });
-  // For each row, check if left side is a known label and right side is a value
-  var LABELS = {
-    'HEAT': 'heat', 'HEATNO': 'heat', 'HEATNO.': 'heat', 'HEATNUMBER': 'heat',
-    'PONO': 'po', 'PONO.': 'po', 'PONUMBER': 'po', 'CUSTPO': 'po', 'CUSTPO#': 'po', 'CUSTOMERPO': 'po',
-    'SPECIFICATION': 'spec', 'ASTM': 'spec',
-    'DESIGNATION': 'type',
-    'QUANTITY': 'qty',
-    'COUNTRYOFORIGIN': 'origin', 'ORIGIN': 'origin',
-    'SUPPLIER': 'mill',
-    'CHARPY': 'cvn'
-  };
-  var results = {};
-  for (var r = 0; r < rows.length; r++) {
-    if (rows[r].length < 2) continue;
-    // Get left-most word(s) as potential label
-    var leftWords = rows[r].slice(0, Math.min(3, rows[r].length));
-    var labelStr = leftWords.map(function(w) { return w.str.trim().replace(/[:.#-]/g,''); }).join('').toUpperCase().replace(/\s/g,'');
-    var rightWords = rows[r].slice(leftWords.length);
-    var valStr = rightWords.map(function(w) { return w.str.trim(); }).join(' ');
-    // Check label against known patterns
-    for (var label in LABELS) {
-      if (labelStr.indexOf(label) === 0 && labelStr.length >= label.length && valStr.length > 0 && valStr.length < 50) {
-        var key = LABELS[label];
-        if (!results[key]) {
-          // Check x-gap between label and value (should be significant)
-          var lastLabelX = leftWords[leftWords.length-1].x1;
-          var firstValX = rightWords[0].x0;
-          var gap = firstValX - lastLabelX;
-          var charW = (leftWords[0].x1 - leftWords[0].x0) / Math.max(leftWords[0].str.length, 1);
-          if (gap > charW * 1.5 || labelStr.length > 6) {
-            results[key] = { value: valStr, row: r, label: labelStr };
-          }
-        }
-        break;
-      }
+// Chemistry extraction from flat text (fallback)
+function extractChemFromText(flat, template) {
+  var chem = {};
+  var ranges = template.chemRanges;
+  // Pattern: "C 0.06 Mn 1.25 P 0.017 S 0.015 Si 0.27 Cu 0.28 Ni 0.31 Cr 0.46"
+  var elemRe = /([CMPSCVNA]\w{0,2})\s+(\d+\.?\d*)/g;
+  var em;
+  var allElements = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca'];
+  while ((em = elemRe.exec(flat)) !== null) {
+    var elem = em[1].trim();
+    var val = em[2];
+    // Normalize element name
+    if (elem === 'Cb' || elem === 'Nb') elem = 'Cb';
+    else if (allElements.indexOf(elem) === -1) continue;
+    var numVal = parseFloat(val);
+    var range = ranges[elem] || METAL_KNOWLEDGE.validationRanges[elem];
+    if (range && !isNaN(numVal)) {
+      if (numVal < range[0] || numVal > range[1]) continue;
     }
+    if (!chem[elem]) chem[elem] = val;
   }
-  return results;
+  return chem;
 }
 
-function parseMtrText(text, area) {
+
+// ===== MAIN PARSING FUNCTION =====
+function parseMtrText(text, area, allOcrWords) {
+  var flat = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+  // OCR error corrections
+  flat = flat.replace(/\bAS88\b/gi, 'A588').replace(/\bAS36\b/gi, 'A36').replace(/\bA5S8\b/gi, 'A588')
+            .replace(/\bA7038\b/gi, 'A709').replace(/\bA703\b/gi, 'A709');
+
+  // Collect all OCR words from pageContentCache
+  if (!allOcrWords) {
+    allOcrWords = [];
+    for (var pg = 1; pg <= 10; pg++) {
+      if (pageContentCache[pg] && pageContentCache[pg].type === 'ocr' && pageContentCache[pg].words) {
+        allOcrWords = allOcrWords.concat(pageContentCache[pg].words);
+      }
+    }
+  }
+
+  // ========== STEP 1: IDENTIFY THE MILL ==========
+  var millInfo = identifyMill(flat);
+  console.log('[MTR] Mill identified:', millInfo.key, millInfo.template.name);
+
+  // ========== STEP 2: TEMPLATE-GUIDED EXTRACTION ==========
+  var data = extractWithTemplate(allOcrWords, flat, millInfo);
+  console.log('[MTR] Extracted:', JSON.stringify(data.heatNums), data.spec, data.size, 'chem:', Object.keys(data.chem1).length, 'elements');
+
+  // ========== STEP 3: POPULATE FORM FIELDS ==========
   var found = [];
-  var norm = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' \n ').trim();
-  var flat = norm.replace(/\n/g, ' ').replace(/\s+/g, ' ');
-  // OCR error corrections (common Tesseract substitutions on scanned MTRs)
-  flat = flat.replace(/\bAS88\b/gi, 'A588').replace(/\bAS36\b/gi, 'A36').replace(/\bA5S8\b/gi, 'A588');
 
-  // ========== PRIORITY 1: HEAT NUMBERS (most critical field) ==========
-  var heatNums = [];
-
-  // Strategy 1: "HEAT NO.:123456" or "HEAT NO 123456" or "HEAT#123456" (most reliable)
-  // OCR-tolerant: handles t->1, I->1, o->0 substitutions
-  var heatLabelRe = /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9]{5,12})/gi;
-  var hm;
-  while ((hm = heatLabelRe.exec(flat)) !== null) {
-    var raw = hm[1];
-    var val = raw.replace(/t/gi, '1').replace(/I/g, '1').replace(/o/gi, '0').replace(/O/g, '0').replace(/[^A-Z0-9]/gi, '');
-    var digitCount = (val.match(/\d/g) || []).length;
-    if (val.length >= 5 && val.length <= 14 && digitCount >= 4 && heatNums.indexOf(val) === -1) {
-      // Exclude numbers that appear after weight/qty labels
-      var ctx = flat.substring(Math.max(0, hm.index - 25), hm.index);
-      if (!/LBS|PCS|LB\s|WEIGHT|DLVRY|Date|Total|Order|Load|Tally|Phone|ZIP|Cert\b|BOL\b|Material|Sales|Mill|Page/i.test(ctx)) {
-        heatNums.push(val);
-      }
+  // Heat numbers
+  if (data.heatNums.length > 0) {
+    document.getElementById('heat1').value = data.heatNums[0];
+    found.push('Heat #1');
+    if (data.heatNums.length > 1) {
+      document.getElementById('heat2').value = data.heatNums[1];
+      found.push('Heat #2');
     }
   }
 
-  // Strategy 2: "SLAB NO.:243539" or "SLAB NUMBER 243539" (Nucor Tuscaloosa)
-  if (heatNums.length === 0) {
-    var slabRe = /SLAB\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{5,7})\-?\d*/gi;
-    while ((hm = slabRe.exec(flat)) !== null) {
-      if (heatNums.indexOf(hm[1]) === -1) heatNums.push(hm[1]);
+  // Specification
+  if (data.spec) {
+    var specSelect = document.getElementById('spec-select');
+    var specFound = false;
+    for (var i = 0; i < specSelect.options.length; i++) {
+      if (specSelect.options[i].value === data.spec) { specSelect.selectedIndex = i; specFound = true; break; }
+    }
+    if (specFound) {
+      specSelect.dataset.detected = '1';
+      onMaterialChange();
+      found.push('Specification (' + data.spec + ')');
     }
   }
 
-  // Strategy 3: Nucor Tuscaloosa format — heat numbers appear as "243539-01" in table rows
-  // Look for 6-digit number followed by "-0" and a digit, near Heat/Slab context
-  if (heatNums.length === 0) {
-    var tableHeatRe = /(\d{6})\s*-\s*0\d\b/gi;
-    while ((hm = tableHeatRe.exec(flat)) !== null) {
-      // Exclude if preceded by "Load", "Order", "Material" (not a heat number)
-      var ctx5 = flat.substring(Math.max(0, hm.index - 30), hm.index);
-      if (!/Load\s*Number|Order\s*Number|Material\s*No|Cert(?:ificate)?\s*Number/i.test(ctx5) && heatNums.indexOf(hm[1]) === -1) {
-        heatNums.push(hm[1]);
-      }
+  // Material type
+  if (data.matType) {
+    var matSelect = document.getElementById('mat-type');
+    for (var i = 0; i < matSelect.options.length; i++) {
+      if (matSelect.options[i].value === data.matType) { matSelect.selectedIndex = i; break; }
     }
-  }
-
-  // Strategy 4: Any standalone 6-7 digit number near "heat" or "slab" keyword (fuzzy)
-  if (heatNums.length === 0) {
-    var fuzzyHeatRe = /\b(\d{6,8})\b/g;
-    while ((hm = fuzzyHeatRe.exec(flat)) !== null) {
-      var ctx2 = flat.substring(Math.max(0, hm.index - 50), hm.index + 30);
-      if (/HEAT|SLAB|MELT|POUR/i.test(ctx2) && heatNums.indexOf(hm[1]) === -1) {
-        // Exclude if context shows it's a non-heat number
-        if (!/LBS|WEIGHT|DLVRY|Date|Total|Order|Cert|Phone|ZIP|Load|Tally|BOL|Part|Item|Page|Material|Sales|Mill/i.test(ctx2)) {
-          heatNums.push(hm[1]);
-        }
-      }
-    }
-  }
-
-  // Strategy 5: For Nucor-Yamato dense tables — very restrictive
-  // Only use if HEAT keyword is within 30 chars of the number
-  if (heatNums.length === 0) {
-    var nucorRe = /HEAT[^\d]{0,30}(\d{6})\b/gi;
-    while ((hm = nucorRe.exec(flat)) !== null) {
-      var ctx3 = flat.substring(Math.max(0, hm.index - 10), hm.index + 50);
-      if (!/Load|Tally|Order|BOL|Part|Item|Cert|Material|Sales|Mill|Page/i.test(ctx3) && heatNums.indexOf(hm[1]) === -1) {
-        heatNums.push(hm[1]);
-      }
-    }
-  }
-
-  if (heatNums[0]) { document.getElementById('heat1').value = heatNums[0]; found.push('Heat #1'); }
-  if (heatNums[1]) { document.getElementById('heat2').value = heatNums[1]; found.push('Heat #2'); }
-
-  // ========== PRIORITY 2: SPECIFICATION / GRADE ==========
-  var specDetected = null;
-
-  // Step A: "GRADE:" label — the spec printed next to GRADE: on the MTR is always primary
-  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})([Ww]?)/i);
-  if (gradeLabelMatch) {
-    var isSA = (gradeLabelMatch[1] || '').toUpperCase() === 'SA';
-    var specNum = gradeLabelMatch[2];
-    var gradeNum = gradeLabelMatch[3];
-    var isW = (gradeLabelMatch[4] || '').toUpperCase() === 'W';
-    // OCR tolerance: "703" or "7038" → "709", "538" → "588"
-    if (specNum === '703' || (specNum.length >= 3 && specNum.substring(0,3) === '703')) specNum = '709';
-    if (specNum === '538' || specNum === '588') specNum = '588';
-    if (specNum === '529') specNum = '529';
-    if (isW && (specNum === '709' || specNum === '588')) specDetected = 'A709-50W';
-    else if (specNum === '709' && gradeNum === '50') specDetected = 'A709-50';
-    else if (specNum === '588') specDetected = 'A588';
-    else if (specNum === '572' && gradeNum === '50') specDetected = 'A572-50';
-    else if (specNum === '500') specDetected = 'A500-B';
-    else if (specNum === '992') specDetected = 'A992';
-    else if (specNum === '36') specDetected = 'A36';
-    else if (specNum === '529' && gradeNum === '50') specDetected = 'A572-50';
-  }
-
-  // Step B: Pattern matching fallback (only if GRADE: label not found)
-  if (!specDetected) {
-    // A709-50W: weathering bridge steel (highest priority)
-    if (/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50W\b/i.test(flat)) specDetected = 'A709-50W';
-    // A588: weathering steel (check it's not in "ALSO MEETS" remarks)
-    if (!specDetected && /\bA588\b/i.test(flat)) {
-      var a588pos = flat.search(/\bA588\b/i);
-      var ctxA588 = flat.substring(Math.max(0, a588pos - 30), a588pos + 40);
-      if (!/ALSO\s+MEETS|REMARKS/i.test(ctxA588)) specDetected = 'A588';
-    }
-    // Fuzzy: garbled OCR may show "588" without "A" prefix (Nucor Tuscaloosa)
-    if (!specDetected && /\b588\b/.test(flat) && /PLATE|COIL|HOT\s*ROL/i.test(flat)) specDetected = 'A588';
-    // SA36 = A36 (ASME spec for mild steel)
-    if (!specDetected && /\bSA36\b/i.test(flat)) specDetected = 'A36';
-    // A709-50: non-weathering bridge steel — only if NOT in remarks/also-meets context
-    if (!specDetected) {
-      var a709Match50 = flat.search(/\bA709[\s\-\/]*(?:\d{2})?[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50\b/i);
-      if (a709Match50 !== -1) {
-        var ctx709 = flat.substring(Math.max(0, a709Match50 - 30), a709Match50 + 50);
-        if (!/ALSO\s+MEETS|REMARKS/i.test(ctx709)) specDetected = 'A709-50';
-      }
-    }
-    // A572-50
-    if (!specDetected && /\bA572[\s\-\/]*(?:GR(?:ADE)?\.?\s*)?50/i.test(flat)) specDetected = 'A572-50';
-    // A500-B/C (HSS tubing)
-    if (!specDetected && /\bA500[\d\s\-\/]*(?:GR(?:ADE)?\.?\s*)?[BC]/i.test(flat)) specDetected = 'A500-B';
-    // A992: non-weathering beam steel
-    if (!specDetected && /\bA992\b/i.test(flat)) specDetected = 'A992';
-    // A36: mild steel (check last — it's common in remarks too)
-    if (!specDetected && /\bA36\b/i.test(flat)) {
-      var a36pos = flat.search(/\bA36\b/i);
-      var ctxA36 = flat.substring(Math.max(0, a36pos - 30), a36pos + 40);
-      if (!/ALSO\s+MEETS|REMARKS/i.test(ctxA36)) specDetected = 'A36';
-    }
-  }
-
-  // Step C: A709-50W override — only if A709 Gr50W appears clearly BEFORE A588
-  var a709Idx = flat.search(/\bA709[^\n]{0,20}50W/i);
-  var a588Idx = flat.search(/\bA588\b/i);
-  if (a709Idx !== -1 && a588Idx !== -1 && a709Idx < a588Idx) {
-    specDetected = 'A709-50W';
-  }
-
-  if (specDetected) {
-    var sel = document.getElementById('spec-select');
-    sel.dataset.detected = 'true';
-    for (var si = 0; si < sel.options.length; si++) {
-      if (sel.options[si].value === specDetected) { sel.value = specDetected; break; }
-    }
-    initChem();
-    found.push('Specification');
-  }
-
-  // ========== PRIORITY 3: DIMENSIONS / TYPE DESIGNATION ==========
-  var sizeStr = '';
-
-  // Beams (W-shapes): W24x76, W18x65 — web depth x lbs per foot
-  var wMatch = flat.match(/\b(W\d{1,2}\s*[Xx]\s*\d{1,3}(?:\.\d+)?)\b/);
-  if (wMatch) sizeStr = wMatch[1].toUpperCase().replace(/\s+/g,'');
-
-  // Channels: C8x18.75, C6x8.2 — depth x weight
-  if (!sizeStr) {
-    var cMatch = flat.match(/\b(C\d{1,2}\s*[Xx]\s*\d{1,3}(?:\.\d+)?)\b/);
-    if (cMatch) sizeStr = cMatch[1].toUpperCase().replace(/\s+/g,'');
-  }
-
-  // Angles: L4x3x1/4, L4 X 3 X .25, "SECTION: ANG 4 X 3x1/4"
-  if (!sizeStr) {
-    var sectionMatch = flat.match(/SECTION\s*[:\-]?\s*(?:ANG(?:LE)?\s*)?(\d\s*[Xx]\s*\d(?:\.\d+)?\s*[Xx]\s*[\d\/\.]+)/i);
-    if (sectionMatch) sizeStr = sectionMatch[1].toUpperCase().replace(/\s+/g,'');
-  }
-  if (!sizeStr) {
-    var lMatch = flat.match(/\bL\s*(\d)\s*[Xx]\s*(\d)\s*[Xx]\s*([\d\/\.]+)/i);
-    if (lMatch) sizeStr = 'L' + lMatch[1] + 'X' + lMatch[2] + 'X' + lMatch[3];
-  }
-
-  // HSS: HSS10SQx375, HSS 10x10x.375 — width x width x wall thickness
-  if (!sizeStr) {
-    var hssMatch = flat.match(/HSS\s*(\d+(?:\.\d+)?)\s*(?:SQ|X\s*\d+(?:\.\d+)?)\s*[Xx]\s*([\d\.\/]+)/i);
-    if (hssMatch) {
-      var hssW = hssMatch[1];
-      var hssWall = hssMatch[2];
-      // Check if it's square or rectangular
-      var hssMatch2 = flat.match(/HSS\s*(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)\s*[Xx]\s*([\d\.\/]+)/i);
-      if (hssMatch2) sizeStr = 'HSS' + hssMatch2[1] + 'X' + hssMatch2[2] + 'X' + hssMatch2[3];
-      else sizeStr = 'HSS' + hssW + 'SQX' + hssWall;
-    }
-  }
-
-  // Plate: thickness x width x length ("0.3750 IN x 96.000 IN x 240.000 IN")
-  // Flat bar: thickness only
-  if (!sizeStr) {
-    var plateMatch = flat.match(/(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN\s*[Xx]\s*(\d+\.\d+)\s*IN/i);
-    if (plateMatch) sizeStr = plateMatch[1] + 'x' + plateMatch[2] + 'x' + plateMatch[3];
-  }
-  // Plate: "0.375 x 96 x 240" without IN units
-  if (!sizeStr) {
-    var plateMatch2 = flat.match(/(\d\.\d{3,4})\s*[Xx]\s*(\d{2,3}(?:\.\d+)?)\s*[Xx]\s*(\d{2,3}(?:\.\d+)?)/);
-    if (plateMatch2) sizeStr = plateMatch2[1] + 'x' + plateMatch2[2] + 'x' + plateMatch2[3];
-  }
-
-  if (sizeStr) {
-    document.getElementById('beam-type').value = sizeStr;
-    found.push('Type/Size');
-  }
-
-  // ========== MATERIAL TYPE (derived from dimensions + keywords) ==========
-  var matDetected = null;
-  if (/\bHSS\b|\bTUBE\b|\bHOLLOW\s*STRUCT/i.test(flat)) matDetected = 'hss-square';
-  else if (/\bANGLE\b|\bANG\s+\d/i.test(flat)) matDetected = 'angle';
-  else if (/\bCHANNEL\b/i.test(flat)) matDetected = 'channel';
-  else if (/\bPLATE\b|\bHOT\s*ROL/i.test(flat)) matDetected = 'plate';
-  else if (/\bFLAT\s*BAR\b/i.test(flat)) matDetected = 'flat-bar';
-  else if (/\bBEAM\b|\bW\d+\s*[Xx]\s*\d/i.test(flat)) matDetected = 'beam';
-  else if (sizeStr && /^W/i.test(sizeStr)) matDetected = 'beam';
-  else if (sizeStr && /^L/i.test(sizeStr)) matDetected = 'angle';
-  else if (sizeStr && /^C/i.test(sizeStr)) matDetected = 'channel';
-  else if (sizeStr && /^HSS/i.test(sizeStr)) matDetected = 'hss-square';
-  else if (sizeStr && /^\d+\.\d+x\d/i.test(sizeStr)) matDetected = 'plate';
-
-  if (matDetected) {
-    document.getElementById('mat-type').value = matDetected;
     onMaterialChange();
-    // Re-apply spec if it was detected before material type was set (onMaterialChange repopulates the dropdown)
-    if (specDetected) {
-      var sel2 = document.getElementById('spec-select');
-      for (var si2 = 0; si2 < sel2.options.length; si2++) {
-        if (sel2.options[si2].value === specDetected) { sel2.value = specDetected; break; }
-      }
-      initChem();
-    }
-    // HSS size fallback: if material is HSS but size wasn't found via "HSS" prefix,
-    // try generic "WxHxWall" pattern (OCR may garble the "HSS" label)
-    if (matDetected.indexOf('hss') === 0 && !sizeStr) {
-      // Look for "WxHxWall" near "Material" label (Atlas Tube format)
-      var hssDim = flat.match(/Material\s*:?\s*[~]*\s*(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)\s*[Xx]\s*(\d{3,4}(?:\.\d+)?)/i);
-      if (!hssDim) {
-        // Fallback: any "WxHxWall" pattern with wall = 3-4 digits (e.g. 375 = 0.375")
-        hssDim = flat.match(/(\d{1,3}(?:\.\d+)?)\s*[Xx]\s*(\d{1,3}(?:\.\d+)?)\s*[Xx]\s*(\d{3,4}(?:\.\d+)?)(?![\d.])/);
-      }
-      if (hssDim) {
-        sizeStr = hssDim[1] + 'x' + hssDim[2] + 'x' + hssDim[3];
-        document.getElementById('beam-type').value = sizeStr;
-        if (found.indexOf('Type/Size') === -1) found.push('Type/Size');
-      }
-    }
     found.push('Material Type');
   }
 
-  // ========== PRIORITY 4: CVN (CHARPY V-NOTCH) ==========
-  // Look for Charpy impact values: "Charpy test 1: 114 ft-lbs @ -20F" etc.
-  // We don't have a CVN input field, but we flag it as found for the user to verify
-  if (/CHARPY|CVN|IMPACT|FT[\-\s]?LB/i.test(flat)) {
-    found.push('CVN (detected — verify highlighted area)');
+  // Size
+  if (data.size) {
+    document.getElementById('beam-type').value = data.size;
+    found.push('Type/Size');
   }
 
-  // ========== PRIORITY 5: MADE IN AMERICA ==========
-  // Different mills phrase this differently:
-  // - "Melted and Manufactured in USA" (Nucor, CMC)
-  // - "100% Melted and Poured in USA" (Atlas Tube)
-  // - "Made in USA" (general)
-  // - "Build America Buy America Act of 2021" (CMC)
-  // - "Buy America Act" / "Build America" (various)
-  // - "domestic" / "produced in the United States" (various)
-  var countryOrigin = '';
-  if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
-    countryOrigin = 'USA (Melted & Manufactured)';
-  } else if (/100%\s*MELTED\s+AND\s+(?:MANUFACTURED|POURED|ROLLED)\s+IN\s+(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
-    countryOrigin = 'USA (100% Melted)';
-  } else if (/MADE\s+IN\s+(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
-    countryOrigin = 'USA';
-  } else if (/MELT(?:ED|ING).*(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat) || /POUR(?:ED|ING).*(?:U\.?S\.?A|UNITED\s+STATES)/i.test(flat)) {
-    countryOrigin = 'USA (Melted/Poured)';
-  } else if (/BUILD\s+AMER|BUY\s+AMER/i.test(flat)) {
-    // "Build America Buy America Act", "Buy America Act of 2021", etc.
-    countryOrigin = 'USA (Buy/Build America)';
-  } else if (/PRODUCED\s+IN\s+(?:THE\s+)?(?:U\.?S\.?A|UNITED\s+STATES)|DOMESTIC\s+(?:STEEL|MILL|PRODUCT)/i.test(flat)) {
-    countryOrigin = 'USA (Domestic)';
+  // PO number
+  if (data.poNumber) {
+    document.getElementById('po-number').value = data.poNumber;
+    found.push('PO Number');
   }
-  // Fallback: known domestic mills with USA in address (catches OCR-missed origin text)
-  if (!countryOrigin && /USA\b/i.test(flat) && /NUCOR|CMC\s+STEEL|ATLAS\s+TUBE|STEEL\s+ALABAMA|TUSCALOOSA|YAMATO|NIPPON|BERKSHIRE|STEEL\s+DYNAMICS|GALLATIN/i.test(flat)) {
-    countryOrigin = 'USA (domestic mill)';
-  }
-  if (countryOrigin) {
-    document.getElementById('country-origin').value = countryOrigin;
+
+  // Country of origin
+  if (data.origin) {
+    document.getElementById('country-origin').value = data.origin;
     found.push('Made in America');
   }
 
-  // ========== SECONDARY: MILL / SUPPLIER ==========
-  var millPatterns = [
-    [/NUCOR[\-\s]?YAMATO\s*STEEL\s*(?:CO\.?|COMPANY)?/i, 'Nucor-Yamato Steel'],
-    [/NUCOR\s+STEEL\s+TUSCALOOSA/i, 'Nucor Steel Tuscaloosa'],
-    [/NUCOR\s+STEEL[\w\s,\.]*INC\.?/i, null],
-    [/CMC\s+STEEL\s*\w*/i, null],
-    [/ATLAS\s*TUBE/i, 'Atlas Tube'],
-    [/Al\s*Ti\s*be/i, 'Atlas Tube'],
-    [/DIVISION\s+OF\s+ZEKELMAN/i, 'Atlas Tube'],
-    [/BLYTHEVILLE.*ARKANSAS/i, 'Atlas Tube'],
-    [/ZEKELMAN[\w\s]*/i, 'Zekelman Industries'],
-    [/ARCELORMITTAL[\w\s]*/i, null],
-    [/GERDAU[\w\s]*/i, null],
-    [/SSAB[\w\s]*/i, null],
-    [/STEEL\s+DYNAMICS[\w\s]*/i, null],
-    [/CHARTER\s+STEEL[\w\s]*/i, null],
-    [/EVRAZ[\w\s]*/i, null],
-    [/INTSEL\s+STEEL\s+\w+/i, null]
-  ];
-  for (var mi = 0; mi < millPatterns.length; mi++) {
-    var mm = flat.match(millPatterns[mi][0]);
-    if (mm) {
-      var millName = millPatterns[mi][1] || mm[0].trim().replace(/\s+/g,' ').substring(0, 50);
-      document.getElementById('mill-name').value = millName;
-      found.push('Mill/Supplier');
-      break;
-    }
+  // Mill name
+  if (millInfo.key !== 'general') {
+    document.getElementById('mill-name').value = millInfo.template.name;
+    found.push('Mill/Supplier');
+  } else if (/NUCOR/i.test(flat)) {
+    document.getElementById('mill-name').value = 'Nucor';
+    found.push('Mill/Supplier');
+  } else if (/CMC/i.test(flat)) {
+    document.getElementById('mill-name').value = 'CMC Steel';
+    found.push('Mill/Supplier');
+  } else if (/ATLAS/i.test(flat)) {
+    document.getElementById('mill-name').value = 'Atlas Tube';
+    found.push('Mill/Supplier');
   }
 
-  // ========== SECONDARY: PO NUMBER ==========
-  var poPatterns = [
-    /CUST(?:OMER)?\.?\s*P\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
-    /\bP\.?\s*O\.?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
-    /PURCHASE\s+ORDER\s*[:\-]?\s*([A-Z]{0,4}\-?\d{4,10})/i,
-    /\bPO\s*[:#\-]\s*([A-Z]{0,4}\-?\d{4,10})/i,
-    /Normal\s*PO\s*([A-Z]{0,4}\s*\-?\s*\d{4,10})/i
-  ];
-  for (var pi = 0; pi < poPatterns.length; pi++) {
-    var pm = flat.match(poPatterns[pi]);
-    if (pm) {
-      document.getElementById('po-number').value = pm[1].trim().replace(/\s+/g,'');
-      found.push('PO Number');
-      break;
-    }
+  // CVN
+  if (data.cvnDetected) found.push('CVN (detected — verify highlighted area)');
+
+  // Chemistry
+  if (Object.keys(data.chem1).length > 0) {
+    Object.assign(chem1, data.chem1);
+    Object.assign(chem2, data.chem2);
+    initChem();
+    found.push('Chemistry (' + Object.keys(data.chem1).length + ' elements — verify)');
   }
 
-  // ========== SECONDARY: CHEMISTRY (auto-fill where possible, user verifies) ==========
-  var elemAliases = {
-    C:'C', MN:'Mn', P:'P', S:'S', SI:'Si', CU:'Cu', NI:'Ni', CR:'Cr', MO:'Mo',
-    V:'V', CB:'Cb', NB:'Cb', SN:'Sn', B:'B', TI:'Ti', N:'N', N2:'N', CA:'Ca',
-    AL:'Al', ZR:'Zr', CE:'CE', CEV:'CE', PCM:'Pcm', CI:'Ci', ACI:'Ci'
-  };
-  var elemKeys = Object.keys(elemAliases).sort(function(a,b){ return b.length - a.length; });
-  var elemRanges = {
-    C: [0, 0.25], MN: [0, 2.0], P: [0, 0.10], S: [0, 0.08], SI: [0, 1.0],
-    CU: [0, 1.0], NI: [0, 1.0], CR: [0, 1.5], MO: [0, 0.5], V: [0, 0.15],
-    CB: [0, 0.05], NB: [0, 0.05], SN: [0, 0.05], B: [0, 0.005], TI: [0, 0.05],
-    N: [0, 0.02], CA: [0, 0.01], AL: [0, 0.1], ZR: [0, 0.01],
-    CE: [0, 1.0], PCM: [0, 0.5], CI: [0, 20]
-  };
-
-  function validValue(elem, val) {
-    var r = elemRanges[elem.toUpperCase()];
-    if (!r) return true;
-    var v = parseFloat(val);
-    return v >= r[0] && v <= r[1];
-  }
-
-  function findLabelValuePairs(sourceText) {
-    var out = {};
-    var re = new RegExp('\\b(' + elemKeys.join('|') + ')\\b\\s*[:\\-]?\\s*(\\d{1,2}\\.\\d{2,4})\\s*%?', 'gi');
-    var m;
-    while ((m = re.exec(sourceText)) !== null) {
-      var key = elemAliases[m[1].toUpperCase()];
-      if (key && out[key] === undefined && validValue(key, m[2])) out[key] = m[2];
-    }
-    return out;
-  }
-
-  function findTableRow(sourceText) {
-    var out = {};
-    var headerRe = new RegExp('((?:\\b(?:' + elemKeys.join('|') + ')\\b[\\s,]*){3,})', 'i');
-    var hm2 = sourceText.match(headerRe);
-    if (!hm2) return out;
-    var headerStr = hm2[0];
-    var headers = headerStr.match(new RegExp('\\b(?:' + elemKeys.join('|') + ')\\b', 'gi')) || [];
-    var afterHeader = sourceText.slice(hm2.index + headerStr.length, hm2.index + headerStr.length + 400);
-    var nums = afterHeader.match(/\b\d{1,2}\.\d{2,4}\b/g);
-    if (!nums || nums.length < 3) return out;
-    var count = Math.min(headers.length, nums.length);
-    for (var k = 0; k < count; k++) {
-      var key = elemAliases[headers[k].toUpperCase()];
-      if (key && out[key] === undefined && validValue(key, nums[k])) out[key] = nums[k];
-    }
-    return out;
-  }
-
-  var chemAssigned = 0;
-
-  // ========== TABLE-AWARE CHEMISTRY EXTRACTION ==========
-  // Use word coordinates to detect chemistry table headers and map values by column alignment
-  // Results are MERGED with flat-text extraction (not replacing) for maximum coverage
-  var tableChem = {};
-  for (var pg = 1; pg <= 5; pg++) {
-    if (!pageContentCache[pg] || pageContentCache[pg].type !== 'ocr') continue;
-    var tblChem = extractChemTable(pageContentCache[pg].words, pageContentCache[pg].canvasW, pageContentCache[pg].canvasH);
-    if (Object.keys(tblChem).length >= 3) {
-      Object.assign(tableChem, tblChem);
-      chemAssigned++;
-      break;
-    }
-  }
-  // Pre-populate chem1 with table-aware results (flat-text extraction may add more)
-  if (Object.keys(tableChem).length > 0) {
-    Object.assign(chem1, tableChem);
-  }
-  // Also try table-aware label-value extraction for header fields
-  if (!pageContentCache.__labelValues) {
-    for (var pg2 = 1; pg2 <= 5; pg2++) {
-      if (!pageContentCache[pg2] || pageContentCache[pg2].type !== 'ocr') continue;
-      var lv = extractLabelValueTable(pageContentCache[pg2].words, pageContentCache[pg2].canvasW, pageContentCache[pg2].canvasH);
-      if (Object.keys(lv).length > 0) {
-        pageContentCache.__labelValues = lv;
-        // Fill missing fields from table-aware extraction
-        if (!heatNums.length && lv.heat) {
-          var heatCandidate = lv.heat.value.replace(/[^A-Za-z0-9]/g,'');
-          if (heatCandidate.length >= 5) { heatNums.push(heatCandidate); }
-        }
-        if (!document.getElementById('po-number').value && lv.po) {
-          document.getElementById('po-number').value = lv.po.value.replace(/\s+/g,' ').trim();
-        }
-        break;
-      }
-    }
-  }
-
-  // Flat-text chemistry extraction — fills gaps from table-aware extraction
-  if (true) {
-    var idx1 = flat.indexOf(heatNums[0]);
-    var idx2 = flat.indexOf(heatNums[1]);
-    if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
-      var seg1 = flat.slice(idx1, idx2);
-      var seg2 = flat.slice(idx2, idx2 + 600);
-      var v1 = findLabelValuePairs(seg1); if (Object.keys(v1).length < 2) v1 = findTableRow(seg1);
-      var v2 = findLabelValuePairs(seg2); if (Object.keys(v2).length < 2) v2 = findTableRow(seg2);
-      Object.assign(chem1, v1);
-      Object.assign(chem2, v2);
-      // Merge: only add elements that weren't already found by table-aware extraction
-      for (var ek in v1) { if (!chem1[ek]) chem1[ek] = v1[ek]; }
-      for (var ek2 in v2) { if (!chem2[ek2]) chem2[ek2] = v2[ek2]; }
-      if (Object.keys(v1).length) chemAssigned++;
-      if (Object.keys(v2).length) chemAssigned++;
-    }
-    if (true) {
-      var v = findLabelValuePairs(flat);
-      if (Object.keys(v).length < 2) v = findTableRow(flat);
-      if (Object.keys(v).length) { for (var evk in v) { if (!chem1[evk]) chem1[evk] = v[evk]; } chemAssigned++; }
-    }
-  }
-  if (chemAssigned > 0) { initChem(); found.push('Chemistry (auto-detected — verify)'); }
-
-  // ========== STATUS MESSAGE ==========
+  // ========== STEP 4: STATUS MESSAGE ==========
   var priorityFields = [];
   var missingFields = [];
-  if (heatNums[0]) priorityFields.push('Heat#'); else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
-  if (specDetected) priorityFields.push('Spec'); else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
-  if (sizeStr) priorityFields.push('Size'); else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
-  if (/CHARPY|CVN/i.test(flat)) priorityFields.push('CVN');
-  if (countryOrigin) priorityFields.push('Origin');
+  if (data.heatNums.length > 0) priorityFields.push('Heat#');
+  else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
+  if (data.spec) priorityFields.push('Spec');
+  else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
+  if (data.size) priorityFields.push('Size');
+  else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
+  if (data.cvnDetected) priorityFields.push('CVN');
+  if (data.origin) priorityFields.push('Origin');
 
-  if (found.length) {
-    var msg = '<div class="extract-status"><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values against the highlighted regions.</div>';
-    if (missingFields.length >= 2) {
-      msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields.join(', ') + ' could not be auto-read — document image quality is too low for OCR. Please enter these values manually using the PDF as a reference.</div>';
-    } else if (missingFields.length === 1) {
-      msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields[0] + ' could not be auto-read. Please verify and enter manually if needed.</div>';
-    }
-    area.innerHTML = msg;
-  } else {
-    area.innerHTML = '<div class="extract-status warn">Document image quality is too low for automated OCR extraction. All fields require manual input — use the PDF as your reference.</div>';
+  var msg = '<div class="extract-status"><strong>Mill:</strong> ' + millInfo.template.name + '<br><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values.</div>';
+
+  if (data.warnings.length > 0) {
+    msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Metallurgical warnings:</strong><br>' + data.warnings.join('<br>') + '</div>';
   }
+
+  if (missingFields.length >= 2) {
+    msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields.join(', ') + ' could not be auto-read — document image quality is too low for OCR. Please enter these values manually using the PDF as a reference.</div>';
+  } else if (missingFields.length === 1) {
+    msg += '<div class="extract-status warn" style="margin-top:6px"><strong>Manual input required:</strong> ' + missingFields[0] + ' could not be auto-read. Please verify and enter manually if needed.</div>';
+  }
+
+  if (found.length === 0) {
+    msg = '<div class="extract-status warn">Document image quality is too low for automated OCR extraction. All fields require manual input — use the PDF as your reference.</div>';
+  }
+
+  area.innerHTML = msg;
 }
 
 // ===== PDF RENDER =====
