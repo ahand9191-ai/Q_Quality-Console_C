@@ -1294,7 +1294,7 @@ function extractWithTemplate(allWords, allText, millInfo) {
     results.matType = template.products[0];
   }
   // Override based on size pattern
-  if (/\bW\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'beam';
+  if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) results.matType = 'beam';
   else if (/\bC\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'channel';
   else if (/\bL\d+\s*[xX]\s*\d+/i.test(flat)) results.matType = 'angle';
   else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) results.matType = /SQUARE/i.test(flat) ? 'hss-square' : 'hss-round';
@@ -1703,17 +1703,20 @@ function parseMtrText(text, area, allOcrWords) {
   }
 
   // ========== STEP 3: MATERIAL TYPE ==========
-  var matType = template.products[0] || null;
-  if (/\bW\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
+  var matType = null;
+  // Detect material type from explicit text patterns — NO default guessing
+  if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
   else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
-  else if (/\bCHANNEL\b/i.test(flat)) matType = 'channel';
-  else if (/\bANGLE\b/i.test(flat)) matType = 'angle';
-  else if (/\bPLATE\b/i.test(flat)) matType = 'plate';
+  else if (/\bCHANNEL\b|\bC\s*\d+\s*[xX]\s*\d+\.?\d*/i.test(flat)) matType = 'channel';
+  else if (/\bANGLE\b|\bL\s*\d+\s*[xX]\s*\d+|\b\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i.test(flat)) matType = 'angle';
+  else if (/\bPLATE\b|THICK/i.test(flat)) matType = 'plate';
   else if (/\bFLAT\s*BAR\b/i.test(flat)) matType = 'flatbar';
-  else if (/\bL\s*\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'angle';
-  else if (/\bC\s*\d+\s*[xX]\s*\d+/i.test(flat)) matType = 'channel';
-  else if (template.products.indexOf('plate') !== -1 && /PLATE|THICK|\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
-  else if (!matType && /\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) matType = 'plate';
+  else if (/\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) {
+    // 3-part dimension could be plate, HSS, or angle — check mill's products
+    if (template.products.indexOf('plate') !== -1) matType = 'plate';
+    else if (template.products.indexOf('hss') !== -1) matType = 'hss-square';
+    // Don't default to plate for mills that don't produce plate (CMC makes angles/channels)
+  }
   if (matType) {
     var matSelect = document.getElementById('mat-type');
     for (var i = 0; i < matSelect.options.length; i++) {
@@ -1732,7 +1735,7 @@ function parseMtrText(text, area, allOcrWords) {
     var chMatch = flat.match(/C\s*\d+\s*[xX]\s*\d+\.?\d*/i);
     if (chMatch) sizeStr = chMatch[0].replace(/\s+/g, '').replace(/[xX]/, 'x');
   } else if (matType === 'angle') {
-    var angMatch = flat.match(/L\s*\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i) || flat.match(/\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i);
+    var angMatch = flat.match(/L?\s*\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i) || flat.match(/\d+\s*[xX]\s*\d+\s*[xX]\s*\d+/i);
     if (angMatch) sizeStr = angMatch[0].replace(/\s+/g, ' ').trim();
   } else if (matType === 'plate' || matType === 'flatbar') {
     var plMatch = flat.match(/\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d+\.?\d*/i);
@@ -1758,36 +1761,33 @@ function parseMtrText(text, area, allOcrWords) {
     found.push('Made in America');
   }
 
-  // ========== STEP 6: MILL NAME ==========
+  // ========== STEP 6: MILL NAME (low priority — easily found manually) ==========
   if (millInfo.key !== 'general') {
     document.getElementById('mill-name').value = template.name;
-    found.push('Mill/Supplier');
   } else if (/NUCOR/i.test(flat)) {
     document.getElementById('mill-name').value = 'Nucor';
-    found.push('Mill/Supplier');
   } else if (/CMC/i.test(flat)) {
     document.getElementById('mill-name').value = 'CMC Steel';
-    found.push('Mill/Supplier');
   } else if (/ATLAS/i.test(flat)) {
     document.getElementById('mill-name').value = 'Atlas Tube';
-    found.push('Mill/Supplier');
   }
 
   // ========== STEP 7: PO NUMBER ==========
-  // PO extraction — strict: only short alphanumeric PO numbers
-  var poPatterns = [
-    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*(\d{3,10})/i,
-    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}-\d{3,8})/i,
-    /P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}\d{3,8})/i,
-    /CUSTOMER\s+P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{3,10})/i,
-    /ORDER\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Z]{2,5}-?\d{3,8})/i,
-  ];
-  for (var pi = 0; pi < poPatterns.length; pi++) {
-    var poMatch = flat.match(poPatterns[pi]);
-    if (poMatch) {
-      document.getElementById('po-number').value = poMatch[1].trim();
+  // PO extraction — 7-digit PO numbers (17xxxxx, 18xxxxx, 19xxxxx)
+  // Also check filename for PO-XXXXXXX pattern
+  var poMatch = flat.match(/P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(1[789]\d{5})\b/i) ||
+                flat.match(/\b(1[789]\d{5})\b(?=.*(?:HEAT|SLAB))/i) ||
+                flat.match(/P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}-\d{3,8})/i);
+  // Also check filename
+  if (!poMatch && fileName) {
+    var fnPo = fileName.match(/PO[-\s]?(1[789]\d{5})/i);
+    if (fnPo) poMatch = fnPo;
+  }
+  if (poMatch) {
+    var poVal = poMatch[1].trim();
+    if (poVal.length >= 3) {
+      document.getElementById('po-number').value = poVal;
       found.push('PO Number');
-      break;
     }
   }
 
