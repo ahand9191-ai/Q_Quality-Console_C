@@ -675,7 +675,7 @@ async function extractMtrData() {
         pageContentCache[i] = { type: 'scanned-pending', items: [] };
       } else {
         allText += pageText + '\n';
-        pageContentCache[i] = { type: 'text', items: tc.items };
+        pageContentCache[i] = { type: 'text', items: tc.items, text: pageText };
       }
     } catch(err) {
       isScanned = true;
@@ -748,7 +748,8 @@ async function extractMtrData() {
             });
           });
         }
-        pageContentCache[p] = { type: 'ocr', words: ocrWords, canvasW: ocrCanvas.width, canvasH: ocrCanvas.height };
+        var ocrText = ocrWords.map(function(w) { return w.str; }).join(' ');
+        pageContentCache[p] = { type: 'ocr', words: ocrWords, canvasW: ocrCanvas.width, canvasH: ocrCanvas.height, text: ocrText };
         // Word coordinates stored for template-guided extraction
       }
     } catch(ocrErr) {
@@ -818,7 +819,8 @@ async function extractMtrData() {
               rOcrWords.push({ str: w.text, x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 });
             });
           }
-          pageContentCache[rp] = { type: 'ocr', words: rOcrWords, canvasW: rcanvas.width, canvasH: rcanvas.height };
+          var rOcrText = rOcrWords.map(function(w) { return w.str; }).join(' ');
+          pageContentCache[rp] = { type: 'ocr', words: rOcrWords, canvasW: rcanvas.width, canvasH: rcanvas.height, text: rOcrText };
         }
         if (retryText.trim().length > allText.trim().length) {
           // Merge: combine first-pass text with retry text for richer parsing
@@ -1960,26 +1962,39 @@ function nextPage() { if (pdfDoc && curPage<pdfDoc.numPages) { curPage++; render
 
 // Re-extract MTR data for the current page (for multi-page PDFs with different MTRs per page)
 async function reextractCurrentPage() {
-  if (!pageContentCache[curPage]) return; // page not OCR'd yet
   var pageData = pageContentCache[curPage];
-  var pageText = pageData.text || '';
-  if (!pageText || pageText.trim().length < 20) return; // not enough text
+  if (!pageData) return;
   
-  // Check if this page has its own heat numbers (indicating a separate MTR)
+  // Get text from the appropriate source based on cache type
+  var pageText = '';
+  var pageWords = [];
+  if (pageData.type === 'text' && pageData.items) {
+    pageText = pageData.items.map(function(it) { return it.str; }).join(' ');
+  } else if (pageData.type === 'ocr' && pageData.words) {
+    pageText = pageData.words.map(function(w) { return w.str; }).join(' ');
+    pageWords = pageData.words;
+  } else if (pageData.text) {
+    pageText = pageData.text;
+    pageWords = pageData.words || [];
+  }
+  
+  if (!pageText || pageText.trim().length < 20) return;
+  
+  // Check if this page has its own MTR data (heat = separate MTR)
   var hasHeat = /HEAT|MELT|SLAB/i.test(pageText);
-  if (!hasHeat) return; // continuation page — keep existing data
+  if (!hasHeat) return; // continuation page, keep existing data
   
-  // Clear form fields for new MTR
+  // Clear form fields for the new MTR
   ['heat1','heat2','heat3','heat4','heat5','beam-type','po-number','quantity','country-origin'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
   document.getElementById('mat-type').selectedIndex = 0;
-  document.getElementById('spec-select').selectedIndex = 0;
+  if (document.getElementById('spec-select')) document.getElementById('spec-select').selectedIndex = 0;
+  if (document.getElementById('cvn-zone')) document.getElementById('cvn-zone').selectedIndex = 0;
   
   // Re-run extraction with this page's text
   var extractArea = document.getElementById('extract-area');
-  var pageWords = pageData.words || [];
   parseMtrText(pageText, extractArea, pageWords);
 }
 function zoomIn() { scale *= 1.2; renderPage(); }
