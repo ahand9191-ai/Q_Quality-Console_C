@@ -140,6 +140,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
         <div class="field-row">
           <div class="field"><label>Material Type</label>
             <select id="mat-type" onchange="onMaterialChange()">
+              <option value="">— Select —</option>
               <option value="beam">Beam (W-Shape)</option><option value="channel">Channel</option><option value="angle">Angle</option>
               <option value="flatbar">Flat Bar</option><option value="plate">Plate</option><option value="decking">Decking</option>
               <option value="hss-round">HSS Round</option><option value="hss-square">HSS Square / Rect.</option>
@@ -150,10 +151,13 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
           </div>
           <div class="field"><label>Specification</label><select id="spec-select" onchange="initChem()"></select></div>
         </div>
-        <div class="field"><label id="type-label">Beam Designation</label><input id="beam-type" placeholder="e.g. W24x76"></div>
+        <div class="field"><label id="type-label">Size</label><input id="beam-type" placeholder="e.g. W24x76"></div>
         <div class="field"><label>Quantity</label><input id="quantity" placeholder="e.g. 40 ft 0 in"></div>
         <div class="field"><label>Heat #1</label><input id="heat1" placeholder="e.g. 627779"></div>
-        <div class="field"><label>Heat #2 (if applicable)</label><input id="heat2" placeholder="e.g. 627781"></div>
+        <div class="field"><label>Heat #2</label><input id="heat2" placeholder="e.g. 627781"></div>
+        <div class="field"><label>Heat #3</label><input id="heat3" placeholder="if applicable"></div>
+        <div class="field"><label>Heat #4</label><input id="heat4" placeholder="if applicable"></div>
+        <div class="field"><label>Heat #5</label><input id="heat5" placeholder="if applicable"></div>
         <div class="field"><label>Country of Origin</label><input id="country-origin" placeholder="e.g. USA" style="font-weight:bold;color:#1a5c1a"></div>
         <div class="field-row">
           <div class="field"><label>CVN Zone</label>
@@ -166,7 +170,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
         <div class="field"><label>Welding Code</label>
           <select id="weld-code"><option value="D1.5">AWS D1.5 (Bridge)</option><option value="D1.1">AWS D1.1 (Structural)</option><option value="both">Both D1.1 &amp; D1.5</option><option value="none">N/A</option></select>
         </div>
-        <div class="field"><label id="thick-label">Flange Thickness (in)</label><input id="flange-thick" placeholder="e.g. 0.68"></div>
+        <input type="hidden" id="flange-thick" value="">
         <div class="note" id="preheat-info"></div>
         <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="setStep(2)">REVIEW COMPLETE — PROCEED TO CHEMICAL CHECK</button>
       </div>
@@ -270,8 +274,8 @@ var SPECS = {
   'A325':{name:'ASTM A325 (Bolt)',elements:{C:{min:0.20,max:0.55,label:'Carbon'},Mn:{min:0.20,max:0.50,label:'Manganese'},P:{min:null,max:0.060,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
   'A490':{name:'ASTM A490 (Bolt)',elements:{C:{min:0.28,max:0.48,label:'Carbon'},Mn:{min:0.50,max:1.20,label:'Manganese'},P:{min:null,max:0.030,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'},Si:{min:0.15,max:0.30,label:'Silicon'}}}
 };
-var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C'],'hss-square':['A500-B','A500-C'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
-var MAT_LABELS = {beam:'Beam Designation (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Thickness x Width x Length',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Thickness x Width x Length','square-bar':'Size (e.g. 1x1)',studs:'Size (e.g. 3/4 x 6)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
+var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W','A500-B','A500-C'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C','A36','A572-50'],'hss-square':['A500-B','A500-C','A36','A572-50'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
+var MAT_LABELS = {beam:'Size (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Size (Thickness x Width x Length)',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Size (Thickness x Width x Length)','square-bar':'Size (e.g. 1x1)',studs:'Size (e.g. 3/4 x 6)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
 var THICK_LABELS = {beam:'Flange Thickness (in)',channel:'Web Thickness (in)',angle:'Leg Thickness (in)',flatbar:'Thickness (in)',plate:'Plate Thickness (in)',decking:'Gauge / Thickness','hss-round':'Wall Thickness (in)','hss-square':'Wall Thickness (in)',pipe:'Wall Thickness (in)','round-bar':'Diameter (in)',sheet:'Thickness (in)','square-bar':'Bar Size (in)',studs:'Stud Diameter (in)',bearings:'Thickness (in)',hardware:'Bolt Diameter (in)'};
 var D11_CAT_A=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:32},{t:0.75,p:32},{t:1.5,p:50},{t:2.5,p:150},{t:999,p:225}];
 var D11_CAT_B=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:50},{t:0.75,p:50},{t:1.5,p:150},{t:2.5,p:225},{t:999,p:300}];
@@ -301,9 +305,16 @@ function onMaterialChange() {
   var mat = document.getElementById('mat-type').value;
   var specs = MAT_SPECS[mat] || [];
   var sel = document.getElementById('spec-select');
-  sel.innerHTML = specs.map(function(s) { return '<option value="'+s+'">'+SPECS[s].name+'</option>'; }).join('');
+  // Save current spec selection before rebuilding dropdown
+  var savedSpec = sel.value;
+  sel.innerHTML = '<option value="">— Select Spec —</option>' + specs.map(function(s) { return '<option value="'+s+'">'+SPECS[s].name+'</option>'; }).join('');
+  // Restore selection if it's still valid
+  if (savedSpec) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === savedSpec) { sel.selectedIndex = i; break; }
+    }
+  }
   document.getElementById('type-label').textContent = MAT_LABELS[mat] || 'Size';
-  document.getElementById('thick-label').textContent = THICK_LABELS[mat] || 'Thickness (in)';
   if (mat==='hardware' || mat==='studs') document.getElementById('weld-code').value = 'none';
   initChem();
   updatePreheat();
@@ -351,7 +362,7 @@ function getPreheat(t,tbl) { for (var i=0;i<tbl.length;i++) { if (t<=tbl[i].t) r
 function isWeathering() { var spec = SPECS[document.getElementById('spec-select').value]; return spec && spec.weathering; }
 function getCategory() { return document.getElementById('spec-select').value==='A36' ? 'A' : 'B'; }
 function updatePreheat() {
-  var t = parseFloat(document.getElementById('flange-thick').value);
+  var t = parseFloat(document.getElementById('flange-thick').value) || 0;
   var note = document.getElementById('preheat-info');
   var wc = document.getElementById('weld-code').value;
   if (wc==='none') { note.textContent = 'Welding code not applicable.'; return; }
@@ -1624,6 +1635,16 @@ function parseMtrText(text, area, allOcrWords) {
       document.getElementById('heat2').value = heatNums[1];
       found.push('Heat #2');
     }
+    if (heatNums.length > 2 && document.getElementById('heat3')) {
+      document.getElementById('heat3').value = heatNums[2];
+      found.push('Heat #3');
+    }
+    if (heatNums.length > 3 && document.getElementById('heat4')) {
+      document.getElementById('heat4').value = heatNums[3];
+    }
+    if (heatNums.length > 4 && document.getElementById('heat5')) {
+      document.getElementById('heat5').value = heatNums[4];
+    }
   }
 
   // ========== STEP 2: SPECIFICATION ==========
@@ -1695,6 +1716,7 @@ function parseMtrText(text, area, allOcrWords) {
 
   if (specDetected) {
     var specSelect = document.getElementById('spec-select');
+    // Make sure the spec exists in the dropdown (material type must be set first)
     for (var i = 0; i < specSelect.options.length; i++) {
       if (specSelect.options[i].value === specDetected) { specSelect.selectedIndex = i; break; }
     }
@@ -1723,7 +1745,7 @@ function parseMtrText(text, area, allOcrWords) {
       if (matSelect.options[i].value === matType) { matSelect.selectedIndex = i; break; }
     }
     onMaterialChange();
-    found.push('Material Type');
+    found.push('Material Type (' + matType + ')');
   }
 
   // ========== STEP 4: SIZE/DESIGNATION ==========
@@ -2175,7 +2197,7 @@ function generateCertificate(status, reviewer) {
 // ===== EVENTS =====
 document.getElementById('weld-code').addEventListener('change', updatePreheat);
 document.getElementById('fcm-select').addEventListener('change', updatePreheat);
-document.getElementById('flange-thick').addEventListener('input', updatePreheat);
+// flange-thick is now hidden — preheat updates via onMaterialChange
 var dz = document.getElementById('drop-zone'), pw = document.getElementById('pdf-wrap');
 ['dragenter','dragover'].forEach(function(ev) { pw.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.add('drag'); }); });
 ['dragleave','drop'].forEach(function(ev) { pw.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.remove('drag'); }); });
