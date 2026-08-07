@@ -161,7 +161,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
         <div class="field"><label>Country of Origin</label><input id="country-origin" placeholder="e.g. USA" style="font-weight:bold;color:#1a5c1a"></div>
         <div class="field-row">
           <div class="field"><label>CVN Zone</label>
-            <select id="cvn-zone"><option value="1">Zone 1 (70F)</option><option value="2" selected>Zone 2 (40F)</option><option value="3">Zone 3 (10F)</option></select>
+            <select id="cvn-zone"><option value="" selected>— N/A —</option><option value="1">Zone 1 (70F)</option><option value="2">Zone 2 (40F)</option><option value="3">Zone 3 (10F)</option></select>
           </div>
           <div class="field"><label>FCM</label>
             <select id="fcm-select"><option value="N">No</option><option value="Y">Yes</option></select>
@@ -1361,7 +1361,7 @@ function extractWithTemplate(allWords, allText, millInfo) {
   }
 
   // --- CVN DETECTION ---
-  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) {
+  if (/CHARPY|CVN|V[-\s]?NOTCH/i.test(flat)) {
     results.cvnDetected = true;
     results.confidence.cvn = 0.85;
   }
@@ -1647,7 +1647,31 @@ function parseMtrText(text, area, allOcrWords) {
     }
   }
 
-  // ========== STEP 2: SPECIFICATION ==========
+  // ========== STEP 2: MATERIAL TYPE ==========
+  var matType = null;
+  // Detect material type from explicit text patterns — NO default guessing
+  if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
+  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
+  else if (/\bCHANNEL\b|\bC\s*\d+\s*[xX]\s*\d+\.?\d*/i.test(flat)) matType = 'channel';
+  else if (/\bANGLE\b|\bL\s*\d+\s*[xX]\s*\d+|\b\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i.test(flat)) matType = 'angle';
+  else if (/\bPLATE\b|THICK/i.test(flat)) matType = 'plate';
+  else if (/\bFLAT\s*BAR\b/i.test(flat)) matType = 'flatbar';
+  else if (/\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) {
+    // 3-part dimension could be plate, HSS, or angle — check mill's products
+    if (template.products.indexOf('plate') !== -1) matType = 'plate';
+    else if (template.products.indexOf('hss') !== -1) matType = 'hss-square';
+    // Don't default to plate for mills that don't produce plate (CMC makes angles/channels)
+  }
+  if (matType) {
+    var matSelect = document.getElementById('mat-type');
+    for (var i = 0; i < matSelect.options.length; i++) {
+      if (matSelect.options[i].value === matType) { matSelect.selectedIndex = i; break; }
+    }
+    onMaterialChange();
+    found.push('Material Type (' + matType + ')');
+  }
+
+  // ========== STEP 3: SPECIFICATION ==========
   var specDetected = null;
 
   // Strategy 1: GRADE label parsing (most reliable for scanned MTRs)
@@ -1724,30 +1748,6 @@ function parseMtrText(text, area, allOcrWords) {
     found.push('Specification (' + specDetected + ')');
   }
 
-  // ========== STEP 3: MATERIAL TYPE ==========
-  var matType = null;
-  // Detect material type from explicit text patterns — NO default guessing
-  if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
-  else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
-  else if (/\bCHANNEL\b|\bC\s*\d+\s*[xX]\s*\d+\.?\d*/i.test(flat)) matType = 'channel';
-  else if (/\bANGLE\b|\bL\s*\d+\s*[xX]\s*\d+|\b\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i.test(flat)) matType = 'angle';
-  else if (/\bPLATE\b|THICK/i.test(flat)) matType = 'plate';
-  else if (/\bFLAT\s*BAR\b/i.test(flat)) matType = 'flatbar';
-  else if (/\d+\.?\d*\s*x\s*\d+\.?\d*\s*x\s*\d/i.test(flat)) {
-    // 3-part dimension could be plate, HSS, or angle — check mill's products
-    if (template.products.indexOf('plate') !== -1) matType = 'plate';
-    else if (template.products.indexOf('hss') !== -1) matType = 'hss-square';
-    // Don't default to plate for mills that don't produce plate (CMC makes angles/channels)
-  }
-  if (matType) {
-    var matSelect = document.getElementById('mat-type');
-    for (var i = 0; i < matSelect.options.length; i++) {
-      if (matSelect.options[i].value === matType) { matSelect.selectedIndex = i; break; }
-    }
-    onMaterialChange();
-    found.push('Material Type (' + matType + ')');
-  }
-
   // ========== STEP 4: SIZE/DESIGNATION ==========
   var sizeStr = null;
   if (matType === 'beam') {
@@ -1795,26 +1795,22 @@ function parseMtrText(text, area, allOcrWords) {
   }
 
   // ========== STEP 7: PO NUMBER ==========
-  // PO extraction — 7-digit PO numbers (17xxxxx, 18xxxxx, 19xxxxx)
-  // Also check filename for PO-XXXXXXX pattern
+  // PO extraction — our customer PO is 7 digits starting with 17, 18, or 19
+  // (DEN-xxxxx is the original customer's PO, not ours — ignore it)
   var poMatch = flat.match(/P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(1[789]\d{5})\b/i) ||
-                flat.match(/\b(1[789]\d{5})\b(?=.*(?:HEAT|SLAB))/i) ||
-                flat.match(/P\.?O\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]\s*([A-Z]{2,5}-\d{3,8})/i);
-  // Also check filename
+                flat.match(/\b(1[789]\d{5})\b/i);
+  // Also check filename for PO-XXXXXXX pattern
   if (!poMatch && fileName) {
     var fnPo = fileName.match(/PO[-\s]?(1[789]\d{5})/i);
     if (fnPo) poMatch = fnPo;
   }
   if (poMatch) {
-    var poVal = poMatch[1].trim();
-    if (poVal.length >= 3) {
-      document.getElementById('po-number').value = poVal;
-      found.push('PO Number');
-    }
+    document.getElementById('po-number').value = poMatch[1].trim();
+    found.push('PO Number');
   }
 
   // ========== STEP 8: CVN ==========
-  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) {
+  if (/CHARPY|CVN|V[-\s]?NOTCH/i.test(flat)) {
     found.push('CVN (detected — verify highlighted area)');
   }
 
@@ -1927,7 +1923,7 @@ function parseMtrText(text, area, allOcrWords) {
   if (heatNums.length > 0) priorityFields.push('Heat#'); else { priorityFields.push('Heat# (MISSING)'); missingFields.push('Heat Number'); }
   if (specDetected) priorityFields.push('Spec'); else { priorityFields.push('Spec (MISSING)'); missingFields.push('Specification'); }
   if (sizeStr) priorityFields.push('Size'); else { priorityFields.push('Size (MISSING)'); missingFields.push('Size/Designation'); }
-  if (/CHARPY|CVN|IMPACT|V[-\s]?NOTCH/i.test(flat)) priorityFields.push('CVN');
+  if (/CHARPY|CVN|V[-\s]?NOTCH/i.test(flat)) priorityFields.push('CVN');
   if (countryOrigin) priorityFields.push('Origin');
 
   var msg = '<div class="extract-status"><strong>Mill:</strong> ' + template.name + '<br><strong>Priority fields:</strong> ' + priorityFields.join(' | ') + '<br>Auto-extracted: ' + found.join(', ') + '. Please verify all values.</div>';
@@ -1959,8 +1955,33 @@ async function renderPage() {
   if (hlVisible) await drawHL();
   if (approvalState) drawStamp();
 }
-function prevPage() { if (curPage>1) { curPage--; renderPage(); } }
-function nextPage() { if (pdfDoc && curPage<pdfDoc.numPages) { curPage++; renderPage(); } }
+function prevPage() { if (curPage>1) { curPage--; renderPage(); reextractCurrentPage(); } }
+function nextPage() { if (pdfDoc && curPage<pdfDoc.numPages) { curPage++; renderPage(); reextractCurrentPage(); } }
+
+// Re-extract MTR data for the current page (for multi-page PDFs with different MTRs per page)
+async function reextractCurrentPage() {
+  if (!pageContentCache[curPage]) return; // page not OCR'd yet
+  var pageData = pageContentCache[curPage];
+  var pageText = pageData.text || '';
+  if (!pageText || pageText.trim().length < 20) return; // not enough text
+  
+  // Check if this page has its own heat numbers (indicating a separate MTR)
+  var hasHeat = /HEAT|MELT|SLAB/i.test(pageText);
+  if (!hasHeat) return; // continuation page — keep existing data
+  
+  // Clear form fields for new MTR
+  ['heat1','heat2','heat3','heat4','heat5','beam-type','po-number','quantity','country-origin'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('mat-type').selectedIndex = 0;
+  document.getElementById('spec-select').selectedIndex = 0;
+  
+  // Re-run extraction with this page's text
+  var extractArea = document.getElementById('extract-area');
+  var pageWords = pageData.words || [];
+  parseMtrText(pageText, extractArea, pageWords);
+}
 function zoomIn() { scale *= 1.2; renderPage(); }
 function zoomOut() { scale /= 1.2; renderPage(); }
 
