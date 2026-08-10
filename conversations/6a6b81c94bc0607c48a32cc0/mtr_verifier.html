@@ -294,6 +294,16 @@ var SPECS = {
 var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W','A500-B','A500-C'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C','A36','A572-50'],'hss-square':['A500-B','A500-C','A36','A572-50'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['C1010','C1015','C1018','C1020','A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
 var MAT_LABELS = {beam:'Size (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Size (Thickness x Width x Length)',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Size (Thickness x Width x Length)','square-bar':'Size (e.g. 1x1)',studs:'Stud Designation (e.g. SC 7/8 x 5-3/16)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
 var THICK_LABELS = {beam:'Flange Thickness (in)',channel:'Web Thickness (in)',angle:'Leg Thickness (in)',flatbar:'Thickness (in)',plate:'Plate Thickness (in)',decking:'Gauge / Thickness','hss-round':'Wall Thickness (in)','hss-square':'Wall Thickness (in)',pipe:'Wall Thickness (in)','round-bar':'Diameter (in)',sheet:'Thickness (in)','square-bar':'Bar Size (in)',studs:'Stud Diameter (in)',bearings:'Thickness (in)',hardware:'Bolt Diameter (in)'};
+// Full element name → symbol map (for mills that spell out element names, e.g. Tru-Fit weld stud certs)
+var ELEMENT_FULL_NAMES = {
+  'CARBON':'C', 'MANGANESE':'Mn', 'PHOSPHORUS':'P', 'SULPHUR':'S', 'SULFUR':'S',
+  'SILICON':'Si', 'COPPER':'Cu', 'NICKEL':'Ni', 'CHROMIUM':'Cr', 'MOLYBDENUM':'Mo',
+  'VANADIUM':'V', 'NIOBIUM':'Cb', 'COLUMBIUM':'Cb', 'ALUMINUM':'Al', 'ALUMINIUM':'Al',
+  'TITANIUM':'Ti', 'NITROGEN':'N', 'BORON':'B', 'TIN':'Sn', 'COBALT':'Co',
+  'CALCIUM':'Ca', 'TUNGSTEN':'W', 'LEAD':'Pb', 'MAGNESIUM':'Mg', 'CERIUM':'Ce',
+  'CARBON EQUIVALENT':'CE', 'CEV':'CE', 'CE':'CE'
+};
+
 var D11_CAT_A=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:32},{t:0.75,p:32},{t:1.5,p:50},{t:2.5,p:150},{t:999,p:225}];
 var D11_CAT_B=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:50},{t:0.75,p:50},{t:1.5,p:150},{t:2.5,p:225},{t:999,p:300}];
 var D15_NONFCM=[{t:0.75,p:70,l:'Up to 3/4"'},{t:1.5,p:70,l:'3/4" to 1-1/2"'},{t:2.5,p:150,l:'1-1/2" to 2-1/2"'},{t:999,p:200,l:'Over 2-1/2"'}];
@@ -340,17 +350,40 @@ function onMaterialChange() {
 function initChem() {
   var spec = SPECS[document.getElementById('spec-select').value];
   if (!spec) return;
+  var specKeys = Object.keys(spec.elements);
   ['1','2'].forEach(function(h) {
     var body = document.getElementById('chem-'+h);
     body.innerHTML = '';
     var vals = h==='1' ? chem1 : chem2;
-    Object.keys(spec.elements).forEach(function(e) {
+    // First: spec-defined elements (validated against spec limits)
+    specKeys.forEach(function(e) {
       var lim = spec.elements[e];
       var limStr = (lim.min!==null ? lim.min+'-' : '') + (lim.max!==null ? lim.max : '') + (lim.min===null && lim.max!==null ? ' max' : '');
       var tr = document.createElement('tr');
       tr.innerHTML = '<td>'+lim.label+' ('+e+')</td><td><input class="chem-in" data-h="'+h+'" data-e="'+e+'" value="'+(vals[e]||'')+'" placeholder="--" onchange="chkChem(\''+h+'\',\''+e+'\')"></td><td style="font-size:11px;color:#777">'+limStr+'</td><td id="st-'+h+'-'+e+'" class="st-na">--</td>';
       body.appendChild(tr);
     });
+    // Then: any extracted elements NOT in the spec (reported for information — no pass/fail)
+    var elemLabels = {C:'Carbon',Mn:'Manganese',P:'Phosphorus',S:'Sulfur',Si:'Silicon',Cu:'Copper',Ni:'Nickel',Cr:'Chromium',V:'Vanadium',Mo:'Molybdenum',Nb:'Niobium',Cb:'Columbium',Sn:'Tin',B:'Boron',Ti:'Titanium',N:'Nitrogen',Al:'Aluminum',Ca:'Calcium',CE:'Carbon Equivalent'};
+    Object.keys(vals).forEach(function(e) {
+      if (specKeys.indexOf(e) !== -1) return; // already shown above
+      if (e === 'CE') return; // handled separately below
+      var label = elemLabels[e] || e;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td style="color:#555">'+label+' ('+e+') <span style="font-size:10px;color:#999">reported</span></td><td><input class="chem-in" data-h="'+h+'" data-e="'+e+'" value="'+(vals[e]||'')+'" placeholder="--" onchange="chkChem(\''+h+'\',\''+e+'\')"></td><td style="font-size:11px;color:#999">no limit</td><td id="st-'+h+'-'+e+'" class="st-na">info</td>';
+      body.appendChild(tr);
+    });
+    // CEV row if extracted
+    if (vals['CE']) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td style="color:#555">Carbon Eq. (CE) <span style="font-size:10px;color:#999">reported</span></td><td><input class="chem-in" data-h="'+h+'" data-e="CE" value="'+vals['CE']+'" placeholder="--"></td><td style="font-size:11px;color:#999">calc</td><td id="st-'+h+'-CE" class="st-na">info</td>';
+      body.appendChild(tr);
+    }
+  });
+  // Trigger validation on all rows
+  ['1','2'].forEach(function(h) {
+    var inputs = document.querySelectorAll('input[data-h="'+h+'"]');
+    inputs.forEach(function(inp) { chkChem(h, inp.dataset.e); });
   });
 }
 
@@ -362,6 +395,8 @@ function chkChem(h,e) {
   var lim = spec.elements[e];
   if (h==='1') chem1[e] = inp.value; else chem2[e] = inp.value;
   if (isNaN(v)) { cell.className='st-na'; cell.textContent='--'; return; }
+  // Elements not in the spec (residuals, CEV) — show as informational, no pass/fail
+  if (!lim) { cell.className='st-na'; cell.textContent='info'; return; }
   var ok = true;
   if (lim.min!==null && v<lim.min) ok = false;
   if (lim.max!==null && v>lim.max) ok = false;
@@ -1770,7 +1805,51 @@ function extractChemFromWords(words, template) {
       break;
     }
   }
-  if (headerRow === -1) return {};
+  if (headerRow === -1) {
+    // Fallback: row-per-element layout (Tru-Fit/Tru-Weld, some fastener mills)
+    // Each row has a full element name on the left and a value on the right
+    // e.g. "CARBON: 0.170%" — no column header row at all
+    var fullNameChem = {};
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r].length < 2) continue;
+      var rowText = rows[r].map(function(w) { return w.str; }).join(' ').trim();
+      // Check each full element name
+      for (var fn in ELEMENT_FULL_NAMES) {
+        if (fn === 'CARBON EQUIVALENT') continue;
+        var sym = ELEMENT_FULL_NAMES[fn];
+        if (sym === 'CE') continue;
+        var fnRe = new RegExp('\\b' + fn.replace(/\s+/g, '\\s+') + '\\b', 'i');
+        if (fnRe.test(rowText)) {
+          // Find the numeric value in this row
+          for (var c = 0; c < rows[r].length; c++) {
+            var valWord = rows[r][c].str.trim().replace(/%$/, '').replace(/[:]/g, '');
+            if (/^\d+\.?\d*$/.test(valWord) || /^\d*\.\d+$/.test(valWord)) {
+              var numVal = parseFloat(valWord);
+              var range = ranges[sym] || METAL_KNOWLEDGE.validationRanges[sym];
+              var rMin, rMax;
+              if (Array.isArray(range)) { rMin = range[0]; rMax = range[1]; }
+              else if (range) { rMin = range.min; rMax = range.max; }
+              if (rMin !== undefined && !isNaN(numVal)) {
+                if (numVal < rMin || numVal > rMax) continue;
+              }
+              if (!fullNameChem[sym]) { fullNameChem[sym] = valWord; break; }
+            }
+          }
+        }
+      }
+      // Also capture CEV
+      if (/CEV|CARBON\s+EQUIVALENT/i.test(rowText)) {
+        for (var c2 = 0; c2 < rows[r].length; c2++) {
+          var ceVal = rows[r][c2].str.trim().replace(/%$/, '');
+          if (/^\d+\.?\d*$/.test(ceVal) || /^\d*\.\d+$/.test(ceVal)) {
+            if (!fullNameChem['CE']) fullNameChem['CE'] = ceVal;
+            break;
+          }
+        }
+      }
+    }
+    return fullNameChem;
+  }
 
   // Find data rows and map values to columns
   var chem = {};
@@ -2171,6 +2250,34 @@ function parseMtrText(text, area, allOcrWords) {
     return out;
   }
 
+  // Full element name extraction (e.g. "CARBON: 0.170%", "MANGANESE: 0.540%")
+  // Used by Tru-Fit/Tru-Weld and other fastener/stud mills that spell out element names
+  function findFullElementNamePairs(sourceText) {
+    var out = {};
+    // Build regex from full names — match "NAME: value" or "NAME value" with optional %
+    for (var fullName in ELEMENT_FULL_NAMES) {
+      var sym = ELEMENT_FULL_NAMES[fullName];
+      if (sym === 'CE') continue; // CE is not a real element for chemistry table
+      // Case-insensitive match of full name followed by colon/space and a decimal number
+      var fnRe = new RegExp('\\b' + fullName.replace(/\s+/g, '\\s+') + '\\s*[:\\s]+\\s*(\\d+\\.?\\d*)\\s*%?', 'i');
+      var fm = sourceText.match(fnRe);
+      if (fm) {
+        var elem = sym;
+        if (elem === 'Cb' || elem === 'Nb') elem = 'Cb';
+        if (validValue(elem, fm[1]) && !out[elem]) out[elem] = fm[1];
+      }
+    }
+    return out;
+  }
+
+  // Extract CEV/CE value from full-name format (e.g. "CEV 0.29%")
+  function findCEV(sourceText) {
+    var ceRe = /(?:CEV|CARBON\s+EQUIVALENT|CE)\s*[:\s]+\s*(\d+\.?\d*)\s*%?/i;
+    var cm = sourceText.match(ceRe);
+    if (cm) return cm[1];
+    return null;
+  }
+
   function findTableRow(sourceText) {
     var out = {};
     var elems = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca'];
@@ -2190,7 +2297,16 @@ function parseMtrText(text, area, allOcrWords) {
   }
 
   // Always run flat-text fallback to fill gaps from table-aware extraction
+  // For single-heat stud/fastener certs, extract the whole chemistry block
   {
+    // Try full-element-name extraction first (Tru-Fit/Tru-Weld and similar)
+    var fullNames = findFullElementNamePairs(flat);
+    if (Object.keys(fullNames).length >= 3) {
+      for (var fnEk in fullNames) { if (!chem1[fnEk] && validValue(fnEk, fullNames[fnEk])) chem1[fnEk] = fullNames[fnEk]; }
+      var cevVal = findCEV(flat);
+      if (cevVal && !chem1['CE']) chem1['CE'] = cevVal;
+    }
+
     if (heatNums.length >= 2) {
       var idx1 = flat.indexOf(heatNums[0]);
       var idx2 = flat.indexOf(heatNums[1]);
@@ -2198,7 +2314,9 @@ function parseMtrText(text, area, allOcrWords) {
         var seg1 = flat.slice(idx1, idx2);
         var seg2 = flat.slice(idx2, idx2 + 600);
         var v1 = findLabelValuePairs(seg1); if (Object.keys(v1).length < 2) v1 = findTableRow(seg1);
+        if (Object.keys(v1).length < 2) v1 = findFullElementNamePairs(seg1);
         var v2 = findLabelValuePairs(seg2); if (Object.keys(v2).length < 2) v2 = findTableRow(seg2);
+        if (Object.keys(v2).length < 2) v2 = findFullElementNamePairs(seg2);
         for (var ek in v1) { if (!chem1[ek] && validValue(ek, v1[ek])) chem1[ek] = v1[ek]; }
         for (var ek2 in v2) { if (!chem2[ek2] && validValue(ek2, v2[ek2])) chem2[ek2] = v2[ek2]; }
       }
@@ -2206,6 +2324,7 @@ function parseMtrText(text, area, allOcrWords) {
     {
       var v = findLabelValuePairs(flat);
       if (Object.keys(v).length < 2) v = findTableRow(flat);
+      if (Object.keys(v).length < 2) v = findFullElementNamePairs(flat);
       for (var evk in v) { if (!chem1[evk] && validValue(evk, v[evk])) chem1[evk] = v[evk]; }
     }
     if (Object.keys(chem1).length > 0) {
