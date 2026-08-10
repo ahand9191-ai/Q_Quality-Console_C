@@ -106,6 +106,18 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
 .step-tag{display:inline-block;font-size:9px;padding:1px 6px;border:1px solid #1a3a5c;color:#1a3a5c;font-family:Arial,sans-serif;font-weight:bold;margin-bottom:4px}
 .extract-status{padding:6px 10px;margin:6px 0;font-size:12px;font-family:'Arial',sans-serif;border-left:3px solid #1a3a5c;background:#eef3f8;color:#1a3a5c}
 .extract-status.warn{border-color:#c5a05e;background:#fdf8f0;color:#8a6a1a}
+.enhance-panel{margin:8px 0;padding:10px;border:1px solid #1a3a5c;background:#f0f5fa;font-family:Arial,sans-serif;font-size:12px}
+.enhance-panel h4{margin:0 0 6px 0;font-size:12px;color:#1a3a5c;font-family:'Times New Roman',serif}
+.enhance-status{padding:4px 8px;margin:3px 0;font-size:11px;background:#e6f0ff;border-left:2px solid #1a3a5c;color:#1a3a5c}
+.enhance-step{display:flex;align-items:center;gap:6px;padding:2px 0}
+.enhance-step .check{color:#1a7a30;font-weight:bold}
+.enhance-step .pending{color:#94a8b7}
+.enhance-toggle{display:inline-flex;align-items:center;gap:4px;margin:4px 0;font-size:11px;color:#1a3a5c}
+.enhance-toggle input{margin:0}
+.enhance-preview{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.enhance-preview canvas{border:1px solid #ccc;max-width:200px;height:auto}
+.enhance-preview .label{font-size:10px;color:#94a8b7;text-align:center;margin-top:2px}
+.enhance-preview .col{display:flex;flex-direction:column;align-items:center}
 </style>
 </head>
 <body>
@@ -131,6 +143,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
   <div id="main">
     <div id="sidebar">
       <div id="extract-area"></div>
+      <div id="enhance-area" style="display:none"></div>
 
       <div class="section step-section" id="sec-step1">
         <span class="step-tag">STEP 1</span>
@@ -683,23 +696,171 @@ async function extractMtrData() {
     }
   }
 
-  // Image preprocessing for OCR: grayscale + contrast + binarize
-  function preprocessForOCR(canvas) {
-    var ctx = canvas.getContext('2d');
-    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    var d = imgData.data;
-    // Grayscale + contrast enhancement
-    var contrast = 1.5; // boost contrast
-    var intercept = -20;
-    for (var i = 0; i < d.length; i += 4) {
-      var gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-      var val = Math.max(0, Math.min(255, gray * contrast + intercept));
-      // Binarize at threshold
-      d[i] = d[i+1] = d[i+2] = val > 128 ? 255 : 0;
-      d[i+3] = 255;
+  // ===== ADVANCED IMAGE ENHANCEMENT PIPELINE FOR OCR =====
+  // Multi-stage: grayscale → background normalization → Sauvola adaptive threshold → despeckle
+  // All operations use integral images for O(n) performance — handles 4k+ canvas sizes in seconds.
+
+  // --- Integral image (summed area table) for O(1) local mean/variance queries ---
+  function buildIntegralImages(gray, w, h) {
+    var stride = w + 1;
+    var integral = new Float64Array(stride * (h + 1));
+    var integralSq = new Float64Array(stride * (h + 1));
+    for (var y = 0; y < h; y++) {
+      var rowSum = 0, rowSumSq = 0;
+      for (var x = 0; x < w; x++) {
+        var v = gray[y * w + x];
+        rowSum += v;
+        rowSumSq += v * v;
+        integral[(y + 1) * stride + (x + 1)] = integral[y * stride + (x + 1)] + rowSum;
+        integralSq[(y + 1) * stride + (x + 1)] = integralSq[y * stride + (x + 1)] + rowSumSq;
+      }
     }
+    return { integral: integral, integralSq: integralSq, stride: stride };
+  }
+
+  // --- Query sum and sum-of-squares in a rectangular window via integral images ---
+  function windowSum(integrals, x, y, halfWin, w, h) {
+    var s = integrals.stride;
+    var x1 = Math.max(0, x - halfWin);
+    var y1 = Math.max(0, y - halfWin);
+    var x2 = Math.min(w - 1, x + halfWin);
+    var y2 = Math.min(h - 1, y + halfWin);
+    var area = (x2 - x1 + 1) * (y2 - y1 + 1);
+    var i = integrals.integral;
+    var iq = integrals.integralSq;
+    var sum = i[(y2 + 1) * s + (x2 + 1)] - i[y1 * s + (x2 + 1)] - i[(y2 + 1) * s + x1] + i[y1 * s + x1];
+    var sumSq = iq[(y2 + 1) * s + (x2 + 1)] - iq[y1 * s + (x2 + 1)] - iq[(y2 + 1) * s + x1] + iq[y1 * s + x1];
+    return { sum: sum, sumSq: sumSq, area: area };
+  }
+
+  // --- Step 1: Extract grayscale channel from RGBA image data ---
+  function toGrayscaleArray(imgData) {
+    var d = imgData.data;
+    var gray = new Uint8ClampedArray(d.length / 4);
+    for (var i = 0, j = 0; i < d.length; i += 4, j++) {
+      gray[j] = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0;
+    }
+    return gray;
+  }
+
+  // --- Step 2: Background normalization (removes shadows, uneven lighting, stains) ---
+  // Computes local mean via integral image, subtracts it to flatten the background,
+  // then rescales around 128. O(n) via integral images.
+  function normalizeBackground(gray, w, h) {
+    var radius = Math.max(25, Math.floor(Math.min(w, h) / 10));
+    if (radius % 2 === 0) radius++;
+    var halfRad = (radius - 1) >> 1;
+    var integrals = buildIntegralImages(gray, w, h);
+    var result = new Uint8ClampedArray(gray.length);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var win = windowSum(integrals, x, y, halfRad, w, h);
+        var bgMean = win.sum / win.area;
+        var diff = gray[y * w + x] - bgMean;
+        // Amplify the deviation (text stands out from background) and center at 128
+        result[y * w + x] = Math.max(0, Math.min(255, 128 + diff * 2.5));
+      }
+    }
+    return result;
+  }
+
+  // --- Step 3: Sauvola adaptive thresholding (integral image based, O(n)) ---
+  // t(x,y) = mean * (1 + k * (stddev/R - 1))
+  // where R = dynamic range of std dev (128 for 8-bit), k = 0.34 (sauvola default)
+  // Better than Otsu for uneven backgrounds, shadows, and textured paper.
+  function sauvolaBinarize(gray, w, h) {
+    var winSize = Math.max(15, Math.floor(Math.min(w, h) / 40));
+    if (winSize % 2 === 0) winSize++;
+    var halfWin = (winSize - 1) >> 1;
+    var k = 0.34;
+    var R = 128;
+    var integrals = buildIntegralImages(gray, w, h);
+    var binary = new Uint8ClampedArray(gray.length);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var win = windowSum(integrals, x, y, halfWin, w, h);
+        var mean = win.sum / win.area;
+        var variance = win.sumSq / win.area - mean * mean;
+        var stddev = Math.sqrt(Math.max(0, variance));
+        var t = mean * (1 + k * (stddev / R - 1));
+        binary[y * w + x] = gray[y * w + x] > t ? 255 : 0;
+      }
+    }
+    return binary;
+  }
+
+  // --- Step 4: Binary despeckle (3x3 majority vote on thresholded image) ---
+  // Removes isolated noise pixels. Fast on binary data (just count of 9 values).
+  function despeckleBinary(binary, w, h) {
+    var result = new Uint8ClampedArray(binary.length);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
+          result[y * w + x] = binary[y * w + x];
+          continue;
+        }
+        var count = 0;
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            if (binary[(y + dy) * w + (x + dx)] > 0) count++;
+          }
+        }
+        // Majority of 9: if >=5 neighbors are text (dark=0), keep text
+        result[y * w + x] = (count >= 5) ? 255 : 0;
+      }
+    }
+    return result;
+  }
+
+  // --- Full enhancement pipeline (mode: 'enhanced' or 'binary') ---
+  // 'enhanced': grayscale → background normalization → contrast stretch (feeds Tesseract richer data)
+  // 'binary': all of the above + Sauvola threshold + despeckle (for stubborn low-quality scans)
+  function enhanceForOCR(canvas, mode, statusCb) {
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    var imgData = ctx.getImageData(0, 0, w, h);
+
+    // Step 1: Grayscale
+    if (statusCb) statusCb('Converting to grayscale...');
+    var gray = toGrayscaleArray(imgData);
+
+    // Step 2: Background normalization (removes shadows, uneven lighting)
+    if (statusCb) statusCb('Normalizing background (removing shadows & uneven lighting)...');
+    gray = normalizeBackground(gray, w, h);
+
+    if (mode === 'binary') {
+      // Step 3: Sauvola adaptive thresholding
+      if (statusCb) statusCb('Sauvola adaptive thresholding...');
+      var binary = sauvolaBinarize(gray, w, h);
+
+      // Step 4: Despeckle noise removal
+      if (statusCb) statusCb('Removing noise (despeckle)...');
+      binary = despeckleBinary(binary, w, h);
+
+      // Write binary to canvas
+      var d = imgData.data;
+      for (var i = 0, j = 0; i < d.length; i += 4, j++) {
+        d[i] = d[i + 1] = d[i + 2] = binary[j];
+        d[i + 3] = 255;
+      }
+    } else {
+      // Enhanced grayscale: contrast stretch around 128
+      if (statusCb) statusCb('Enhancing contrast...');
+      var d = imgData.data;
+      for (var i = 0, j = 0; i < d.length; i += 4, j++) {
+        var v = Math.max(0, Math.min(255, (gray[j] - 128) * 1.4 + 128));
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+      }
+    }
+
     ctx.putImageData(imgData, 0, 0);
     return canvas;
+  }
+
+  // Legacy wrapper (kept for any external references)
+  function preprocessForOCR(canvas) {
+    return enhanceForOCR(canvas, 'binary');
   }
 
   // OCR pass for scanned pages using Tesseract.js (works over http/https — Web Workers only fail on file://)
@@ -715,6 +876,35 @@ async function extractMtrData() {
         var ocrCanvas = document.createElement('canvas');
         ocrCanvas.width = ovp.width; ocrCanvas.height = ovp.height;
         await opage.render({ canvasContext: ocrCanvas.getContext('2d'), viewport: ovp }).promise;
+
+        // === ENHANCEMENT PIPELINE: enhance image before OCR for better accuracy ===
+        var _enhanceArea = document.getElementById('enhance-area');
+        if (_enhanceArea) {
+          _enhanceArea.style.display = 'block';
+          _enhanceArea.innerHTML = '<div class="enhance-panel"><h4>&#9881; Image Enhancement Pipeline — Page ' + p + '</h4>' +
+            '<div class="enhance-step" id="es-0"><span class="pending">&#9744;</span> Grayscale conversion</div>' +
+            '<div class="enhance-step" id="es-1"><span class="pending">&#9744;</span> Background normalization (shadows, lighting)</div>' +
+            '<div class="enhance-step" id="es-2"><span class="pending">&#9744;</span> Contrast enhancement</div>' +
+            '<div class="enhance-step" id="es-3"><span class="pending">&#9744;</span> OCR recognition</div>' +
+            '</div>';
+        }
+        enhanceForOCR(ocrCanvas, 'enhanced', function(msg) {
+          var stepMap = {'Converting': 0, 'Normalizing': 1, 'Enhancing': 2};
+          for (var key in stepMap) {
+            if (msg.indexOf(key) >= 0) {
+              var el = document.getElementById('es-' + stepMap[key]);
+              if (el) el.innerHTML = '<span class="check">&#10003;</span> ' + el.textContent.replace(/^\s*[\u2610\u2713]\s*/, '').trim();
+            }
+          }
+          area.innerHTML = '<div class="extract-status">Enhancing: ' + msg + '</div>';
+        });
+        // Mark all enhancement steps done
+        for (var si = 0; si < 3; si++) {
+          var se = document.getElementById('es-' + si);
+          if (se) se.innerHTML = '<span class="check">&#10003;</span> ' + se.textContent.replace(/^\s*[\u2610\u2713\u2022]\s*/, '').trim();
+        }
+        var es3 = document.getElementById('es-3');
+        if (es3) es3.innerHTML = '<span style="color:#1a3a5c">&#9679;</span> OCR recognition...';
 
         var result = await Tesseract.recognize(ocrCanvas, 'eng', {
           logger: function(m) {
@@ -787,16 +977,35 @@ async function extractMtrData() {
           var rcanvas = document.createElement('canvas');
           rcanvas.width = rvp.width; rcanvas.height = rvp.height;
           await rpage.render({ canvasContext: rcanvas.getContext('2d'), viewport: rvp }).promise;
-          // Gentle preprocessing for retry: grayscale + mild contrast only (no binarization)
-          var rctx = rcanvas.getContext('2d');
-          var rImgData = rctx.getImageData(0, 0, rcanvas.width, rcanvas.height);
-          var rd = rImgData.data;
-          for (var ri = 0; ri < rd.length; ri += 4) {
-            var gray = 0.299 * rd[ri] + 0.587 * rd[ri+1] + 0.114 * rd[ri+2];
-            var val = Math.max(0, Math.min(255, (gray - 128) * 1.3 + 128));
-            rd[ri] = rd[ri+1] = rd[ri+2] = val;
+          // === ENHANCEMENT PIPELINE (binary mode for retry — Sauvola + despeckle) ===
+          var _retryArea = document.getElementById('enhance-area');
+          if (_retryArea) {
+            _retryArea.style.display = 'block';
+            _retryArea.innerHTML = '<div class="enhance-panel"><h4>&#9881; Image Enhancement Pipeline (Binary) — Page ' + rp + ' at 6x resolution</h4>' +
+              '<div class="enhance-step" id="rs-0"><span class="pending">&#9744;</span> Grayscale conversion</div>' +
+              '<div class="enhance-step" id="rs-1"><span class="pending">&#9744;</span> Background normalization</div>' +
+              '<div class="enhance-step" id="rs-2"><span class="pending">&#9744;</span> Sauvola adaptive thresholding</div>' +
+              '<div class="enhance-step" id="rs-3"><span class="pending">&#9744;</span> Despeckle (noise removal)</div>' +
+              '<div class="enhance-step" id="rs-4"><span class="pending">&#9744;</span> OCR recognition</div>' +
+              '</div>';
           }
-          rctx.putImageData(rImgData, 0, 0);
+          enhanceForOCR(rcanvas, 'binary', function(msg) {
+            var stepMap = {'Converting': 0, 'Normalizing': 1, 'Sauvola': 2, 'Removing': 3};
+            for (var key in stepMap) {
+              if (msg.indexOf(key) >= 0) {
+                var el = document.getElementById('rs-' + stepMap[key]);
+                if (el) el.innerHTML = '<span class="check">&#10003;</span> ' + el.textContent.replace(/^\s*[\u2610\u2713]\s*/, '').trim();
+              }
+            }
+            area.innerHTML = '<div class="extract-status">Re-scanning: ' + msg + '</div>';
+          });
+          // Mark all enhancement steps done
+          for (var si = 0; si < 4; si++) {
+            var se = document.getElementById('rs-' + si);
+            if (se) se.innerHTML = '<span class="check">&#10003;</span> ' + se.textContent.replace(/^\s*[\u2610\u2713\u2022]\s*/, '').trim();
+          }
+          var rs4 = document.getElementById('rs-4');
+          if (rs4) rs4.innerHTML = '<span style="color:#1a3a5c">&#9679;</span> OCR recognition...';
           var rresult = await Tesseract.recognize(rcanvas, 'eng', {
             logger: function(m) {
               if (m.status === 'recognizing text') {
