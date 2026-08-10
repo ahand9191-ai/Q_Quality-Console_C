@@ -128,6 +128,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
       <div class="subtitle">Material Test Report Compliance — AWS D1.1 & D1.5</div>
     </div>
     <div class="spacer"></div>
+    <button class="btn" style="background:#c0392b;color:#fff" id="btn-clear" onclick="clearAllData()" disabled>CLEAR DATA</button>
     <button class="btn" onclick="document.getElementById('file-input').click()">UPLOAD MTR</button>
     <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event)">
     <button class="btn" id="btn-hl" onclick="toggleHighlights()" disabled>Toggle Highlights</button>
@@ -313,6 +314,88 @@ var CVN_FCM={1:{t:70,e:25,s:20},2:{t:40,e:25,s:20},3:{t:10,e:25,s:20}};
 
 var pdfDoc=null,curPage=1,scale=1.5,hlVisible=true,chem1={},chem2={},approvalState=null,fileName='',currentStep=1;
 
+// ===== CLEAR ALL DATA — full reset before loading a new document =====
+// Without this, form fields from the previous MTR linger and contaminate the next one.
+function clearAllData() {
+  // Reset internal state
+  pdfDoc = null;
+  curPage = 1;
+  scale = 1.5;
+  hlVisible = true;
+  chem1 = {};
+  chem2 = {};
+  approvalState = null;
+  fileName = '';
+  currentStep = 1;
+  pageContentCache = {};
+
+  // Clear all form fields
+  var fieldIds = ['heat1','heat2','heat3','heat4','heat5','beam-type','po-number','quantity',
+                  'country-origin','mill-name','reviewer-name','review-date','review-comments',
+                  'flange-thick'];
+  fieldIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.value = ''; el.dataset.detected = ''; }
+  });
+
+  // Reset dropdowns to defaults
+  var matSelect = document.getElementById('mat-type');
+  if (matSelect) matSelect.selectedIndex = 0;
+  var specSelect = document.getElementById('spec-select');
+  if (specSelect) { specSelect.innerHTML = '<option value="">\u2014 Select Spec \u2014</option>'; specSelect.dataset.detected = ''; }
+  var cvnSelect = document.getElementById('cvn-zone');
+  if (cvnSelect) cvnSelect.selectedIndex = 0;
+  var fcmSelect = document.getElementById('fcm-select');
+  if (fcmSelect) fcmSelect.selectedIndex = 0;
+  var weldSelect = document.getElementById('weld-code');
+  if (weldSelect) weldSelect.selectedIndex = 0;
+
+  // Reset type label
+  var typeLabel = document.getElementById('type-label');
+  if (typeLabel) typeLabel.textContent = 'Size';
+
+  // Clear chemistry tables
+  ['1','2'].forEach(function(h) {
+    var body = document.getElementById('chem-'+h);
+    if (body) body.innerHTML = '';
+  });
+
+  // Clear preheat info
+  var preheat = document.getElementById('preheat-info');
+  if (preheat) preheat.textContent = '';
+
+  // Clear UI panels
+  var extractArea = document.getElementById('extract-area');
+  if (extractArea) extractArea.innerHTML = '';
+  var approvalArea = document.getElementById('approval-status-area');
+  if (approvalArea) approvalArea.innerHTML = '';
+
+  // Reset buttons
+  document.getElementById('btn-hl').disabled = true;
+  document.getElementById('btn-chem').disabled = true;
+  document.getElementById('btn-download').disabled = true;
+  document.getElementById('btn-clear').disabled = true;
+
+  // Reset workflow steps
+  setStep(1);
+
+  // Reset viewer: show drop zone, hide PDF bar and canvas
+  document.getElementById('pdf-bar').classList.add('hidden');
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('pdf-canvas').classList.add('hidden');
+  document.getElementById('stamp-canvas').classList.add('hidden');
+
+  // Clear the file input so re-uploading the same file triggers onchange
+  document.getElementById('file-input').value = '';
+
+  // Clear the PDF canvas
+  var canvas = document.getElementById('pdf-canvas');
+  if (canvas.getContext) {
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
 // ===== WORKFLOW STEPS =====
 function setStep(n) {
   currentStep = n;
@@ -438,19 +521,17 @@ async function loadPDF(file) {
     var r = new FileReader();
     r.onload = async function(e) {
       try {
+        // Full reset before loading — don't let previous doc data linger
+        clearAllData();
         pdfDoc = await pdfjsLib.getDocument({data: new Uint8Array(e.target.result)}).promise;
-        curPage = 1;
-        pageContentCache = {};
-        chem1 = {}; chem2 = {}; approvalState = null;
-        document.getElementById('approval-status-area').innerHTML = '';
-        document.getElementById('btn-download').disabled = true;
-        document.getElementById('stamp-canvas').classList.add('hidden');
+        fileName = file.name;
         document.getElementById('page-count').textContent = pdfDoc.numPages;
         document.getElementById('pdf-bar').classList.remove('hidden');
         document.getElementById('drop-zone').classList.add('hidden');
         document.getElementById('pdf-canvas').classList.remove('hidden');
         document.getElementById('btn-hl').disabled = false;
         setStep(1);
+        document.getElementById('btn-clear').disabled = false;
         await renderPage();
         await extractMtrData();
       } catch(err) {
