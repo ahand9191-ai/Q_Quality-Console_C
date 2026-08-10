@@ -281,14 +281,18 @@ var SPECS = {
   'A653-50':{name:'ASTM A653 SS Gr 50',elements:{C:{min:null,max:0.20,label:'Carbon'},Mn:{min:null,max:1.20,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'}}},
   'A653-80':{name:'ASTM A653 SS Gr 80',elements:{C:{min:null,max:0.20,label:'Carbon'},Mn:{min:null,max:1.65,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'}}},
   'A108-1018':{name:'ASTM A108 Gr 1018',elements:{C:{min:0.15,max:0.20,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1010':{name:'ASTM A108 Gr C1010 (Weld Stud)',elements:{C:{min:0.08,max:0.13,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1015':{name:'ASTM A108 Gr C1015 (Weld Stud)',elements:{C:{min:0.13,max:0.18,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1018':{name:'ASTM A108 Gr C1018 (Weld Stud)',elements:{C:{min:0.15,max:0.20,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1020':{name:'ASTM A108 Gr C1020 (Weld Stud)',elements:{C:{min:0.18,max:0.23,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
   'F1554-36':{name:'ASTM F1554 Gr 36',elements:{C:{min:null,max:0.26,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
   'F1554-55':{name:'ASTM F1554 Gr 55',elements:{C:{min:null,max:0.27,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
   'F1554-105':{name:'ASTM F1554 Gr 105',elements:{C:{min:null,max:0.28,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
   'A325':{name:'ASTM A325 (Bolt)',elements:{C:{min:0.20,max:0.55,label:'Carbon'},Mn:{min:0.20,max:0.50,label:'Manganese'},P:{min:null,max:0.060,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
   'A490':{name:'ASTM A490 (Bolt)',elements:{C:{min:0.28,max:0.48,label:'Carbon'},Mn:{min:0.50,max:1.20,label:'Manganese'},P:{min:null,max:0.030,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'},Si:{min:0.15,max:0.30,label:'Silicon'}}}
 };
-var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W','A500-B','A500-C'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C','A36','A572-50'],'hss-square':['A500-B','A500-C','A36','A572-50'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
-var MAT_LABELS = {beam:'Size (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Size (Thickness x Width x Length)',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Size (Thickness x Width x Length)','square-bar':'Size (e.g. 1x1)',studs:'Size (e.g. 3/4 x 6)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
+var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W','A500-B','A500-C'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C','A36','A572-50'],'hss-square':['A500-B','A500-C','A36','A572-50'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['C1010','C1015','C1018','C1020','A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
+var MAT_LABELS = {beam:'Size (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Size (Thickness x Width x Length)',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Size (Thickness x Width x Length)','square-bar':'Size (e.g. 1x1)',studs:'Stud Designation (e.g. SC 7/8 x 5-3/16)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
 var THICK_LABELS = {beam:'Flange Thickness (in)',channel:'Web Thickness (in)',angle:'Leg Thickness (in)',flatbar:'Thickness (in)',plate:'Plate Thickness (in)',decking:'Gauge / Thickness','hss-round':'Wall Thickness (in)','hss-square':'Wall Thickness (in)',pipe:'Wall Thickness (in)','round-bar':'Diameter (in)',sheet:'Thickness (in)','square-bar':'Bar Size (in)',studs:'Stud Diameter (in)',bearings:'Thickness (in)',hardware:'Bolt Diameter (in)'};
 var D11_CAT_A=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:32},{t:0.75,p:32},{t:1.5,p:50},{t:2.5,p:150},{t:999,p:225}];
 var D11_CAT_B=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:50},{t:0.75,p:50},{t:1.5,p:150},{t:2.5,p:225},{t:999,p:300}];
@@ -425,10 +429,52 @@ async function loadPDF(file) {
 }
 
 // ===== PAGE TEXT EXTRACTION (text-based PDFs only) =====
+// IMPORTANT: PDF content streams do NOT guarantee items are emitted in visual reading order.
+// Many mill/vendor PDF generators (report engines, ERP exports) draw labels and values out of
+// order — e.g. all labels in one text block, then all values in another. Naively joining
+// tc.items in stream order scrambles label/value pairs (e.g. "HEAT NUMBER: / GRADE: / 21003830
+// / LOT NUMBER: 393825265 / C1015" instead of the correct row-by-row reading order). We fix this
+// by re-deriving reading order purely from each item's (x, y) position on the page: group items
+// into horizontal lines by y-proximity, then sort each line's items left-to-right by x, then sort
+// lines top-to-bottom. This reconstructs the true visual layout regardless of stream order.
+function orderTextItemsByPosition(items) {
+  var words = [];
+  items.forEach(function(it) {
+    if (!it.str) return;
+    var tx = it.transform; // [a, b, c, d, e, f] — e,f = x,y in PDF user space (y increases upward)
+    var fontHeight = Math.hypot(tx[2], tx[3]) || 10;
+    words.push({ str: it.str, x: tx[4], y: tx[5], h: fontHeight, hasEOL: !!it.hasEOL });
+  });
+  var meaningful = words.filter(function(w) { return w.str.trim().length > 0; });
+  if (meaningful.length === 0) return '';
+
+  // Group into lines: sort top-to-bottom (descending y in PDF space), cluster by y-proximity
+  var sorted = meaningful.slice().sort(function(a, b) { return b.y - a.y; });
+  var lines = [];
+  sorted.forEach(function(w) {
+    var line = null;
+    for (var i = lines.length - 1; i >= 0; i--) {
+      if (Math.abs(lines[i].avgY - w.y) < Math.max(w.h, lines[i].h) * 0.6) { line = lines[i]; break; }
+      if (lines[i].avgY - w.y > Math.max(w.h, lines[i].h) * 3) break; // too far above, stop searching
+    }
+    if (!line) { line = { avgY: w.y, h: w.h, words: [] }; lines.push(line); }
+    else { line.avgY = (line.avgY * line.words.length + w.y) / (line.words.length + 1); }
+    line.words.push(w);
+  });
+
+  // Sort lines top-to-bottom, and within each line sort left-to-right
+  lines.sort(function(a, b) { return b.avgY - a.avgY; });
+  var textLines = lines.map(function(line) {
+    line.words.sort(function(a, b) { return a.x - b.x; });
+    return line.words.map(function(w) { return w.str; }).join(' ').replace(/\s+/g, ' ').trim();
+  });
+  return textLines.filter(Boolean).join('\n');
+}
+
 async function getPageText(pageNum) {
   var page = await pdfDoc.getPage(pageNum);
   var tc = await page.getTextContent();
-  var text = tc.items.map(function(it) { return it.str; }).join(' ');
+  var text = orderTextItemsByPosition(tc.items);
   return text;
 }
 
@@ -679,7 +725,8 @@ async function extractMtrData() {
     try {
       var page = await pdfDoc.getPage(i);
       var tc = await page.getTextContent();
-      var pageText = tc.items.map(function(it) { return it.str; }).join(' ');
+      // Use position-based ordering, not raw stream order — see orderTextItemsByPosition for why.
+      var pageText = orderTextItemsByPosition(tc.items);
       // A real digital MTR has dense text (dozens of fields/numbers). A scanned MTR with only a
       // small digital "REVIEWED" stamp overlay will have very little actual text — treat that as scanned.
       var wordCount = pageText.trim().split(/\s+/).filter(Boolean).length;
@@ -1259,6 +1306,35 @@ var MILL_TEMPLATES = {
     },
     cvnFormat: 'table',
     notes: 'Steel Dynamics produces W-shapes, channels, angles. Heat numbers are 6 digits.'
+  },
+
+  'tru-fit-tru-weld': {
+    name: 'Tru-Fit Products / Tru-Weld (TFP Corporation)',
+    aliases: ['TRU-FIT', 'TRU FIT', 'TRU-WELD', 'TRU WELD', 'TFP CORPORATION', 'TFP CORP'],
+    products: ['studs'],
+    zones: {
+      header:     { y0: 0.00, y1: 0.12 },
+      customer:   { y0: 0.12, y1: 0.22 },
+      product:    { y0: 0.22, y1: 0.32 },
+      chemistry:  { y0: 0.32, y1: 0.62 },
+      cvn:        { y0: 0.62, y1: 0.62 },  // Tru-Fit weld studs are not CVN tested
+      cert:       { y0: 0.62, y1: 1.00 }   // Mechanical props (shank ultimate/yield/elong/bend) + signatures
+    },
+    heatFormat: /^\d{8}$/,
+    heatLabel: 'HEAT NUMBER',
+    specs: ['C1010', 'C1015', 'C1018', 'C1020', 'A108-1018'],
+    sizePattern: /\b[A-Z]{1,3}\s*[\d\/\-]+\s*[Xx]\s*[\d\/\-]+\s*(?:HEADED|FULL\s*THREAD)?\s*WELD\s*STUD\b/,
+    sizeFormat: 'Prefix code + shank dia x length, e.g. "SC 7/8 X 5-3/16 HEADED WELD STUD"',
+    originPhrases: ['MATERIAL ORIGIN DOMESTIC (USA)', 'melted and manufactured in the U.S.A.'],
+    // Tru-Fit reports these residual/incidental elements on weld stud MTRs (weldability chemistry)
+    chemElements: ['C', 'Mn', 'P', 'S', 'Ni', 'Cr', 'Mo', 'Al', 'Si', 'Cu', 'B'],
+    chemRanges: {
+      C:  [0.05, 0.25], Mn: [0.25, 1.00], P:  [0.001, 0.015], S:  [0.001, 0.015],
+      Ni: [0.00, 0.15], Cr: [0.00, 0.20], Mo: [0.00, 0.05], Al: [0.00, 0.05],
+      Si: [0.05, 0.35], Cu: [0.00, 0.15], B:  [0.0000, 0.001]
+    },
+    cvnFormat: 'none',
+    notes: 'Tru-Fit/Tru-Weld produces headed and threaded weld studs (shear connectors) per ASTM A108/A29, AASHTO M169, AWS D1.1/D1.5 subclause 9.9, and CSA W59/S6. Heat numbers are 8 digits. Grades are AISI carbon steel designations (C1010/C1015/C1018/C1020), not ASTM structural grades. No CVN testing — mechanical qualification is by shank tensile/yield/elongation/bend test instead. Each cert page typically covers ONE heat/lot for a specific stud size — merged multi-cert PDFs (one PDF per shipment, one page per stud type/heat) are common; re-extract independently per page.'
   },
 
   'general': {
@@ -1861,7 +1937,8 @@ function parseMtrText(text, area, allOcrWords) {
   // ========== STEP 2: MATERIAL TYPE ==========
   var matType = null;
   // Detect material type from explicit text patterns — NO default guessing
-  if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
+  if (/WELD\s*STUD|HEADED\s*STUD|STUD\s*WELD(?:ING)?\b/i.test(flat)) matType = 'studs';
+  else if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
   else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
   else if (/\bCHANNEL\b|\bC\s*\d+\s*[xX]\s*\d+\.?\d*/i.test(flat)) matType = 'channel';
   else if (/\bANGLE\b|\bL\s*\d+\s*[xX]\s*\d+|\b\d+\s*[xX]\s*\d+\s*[xX]\s*\d+\/\d+/i.test(flat)) matType = 'angle';
@@ -1885,9 +1962,16 @@ function parseMtrText(text, area, allOcrWords) {
   // ========== STEP 3: SPECIFICATION ==========
   var specDetected = null;
 
+  // Strategy 0: AISI carbon-steel stud grade (e.g. "GRADE: C1015") — Tru-Fit/Tru-Weld weld stud MTRs
+  var studGradeMatch = flat.match(/GRADE\s*[:\-]?\s*(C10\d{2})\b/i);
+  if (studGradeMatch) {
+    var studGrade = studGradeMatch[1].toUpperCase();
+    if (SPECS[studGrade]) specDetected = studGrade;
+  }
+
   // Strategy 1: GRADE label parsing (most reliable for scanned MTRs)
   // Handles "GRADE: ASTM A709-21 Gr50W" format
-  var gradeLabelMatch = flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})\s*([WwBbCc]?)\b/i);
+  var gradeLabelMatch = specDetected ? null : flat.match(/GRADE\s*[:\-]?\s*(?:ASTM\s*|AASHTO\s*)?(SA|A)?(\d{2,3})[\d\-\/\.\s]*(?:Gr(?:ade)?\.?\s*)?(\d{0,2})\s*([WwBbCc]?)\b/i);
   if (gradeLabelMatch) {
     var specNum = gradeLabelMatch[2];
     var gradeNum = gradeLabelMatch[3];
@@ -1976,6 +2060,10 @@ function parseMtrText(text, area, allOcrWords) {
   } else if (matType && matType.indexOf('hss') !== -1) {
     var hssMatch = flat.match(/(?:HSS\s*)?\d+\.?\d*\s*[xX]\s*\d+\.?\d*\s*[xX]?\s*\d*\.?\d*/i);
     if (hssMatch) sizeStr = hssMatch[0].trim();
+  } else if (matType === 'studs') {
+    // Weld stud designation, e.g. "SC 7/8 X 5-3/16 HEADED WELD STUD" or "TT 3/4-10 X 2-1/4 FULL THREAD WELD STUD"
+    var studMatch = flat.match(/\b[A-Z]{1,3}\s*[\d\/\-]+\s*[Xx]\s*[\d\/\-]+\s*(?:HEADED|FULL\s*THREAD)?\s*WELD\s*STUD\b/i);
+    if (studMatch) sizeStr = studMatch[0].replace(/\s+/g, ' ').trim();
   }
   if (sizeStr) {
     document.getElementById('beam-type').value = sizeStr;
@@ -1984,11 +2072,12 @@ function parseMtrText(text, area, allOcrWords) {
 
   // ========== STEP 5: COUNTRY OF ORIGIN ==========
   var countryOrigin = null;
-  if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
-      /MADE\s+IN\s+(?:U\.?S\.?A\.?|USA|AMERICA)/i.test(flat) ||
-      /PRODUCED\s+IN\s+(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+  if (/MELTED\s+AND\s+MANUFACTURED\s+IN\s+(?:THE\s+)?(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
+      /MADE\s+IN\s+(?:THE\s+)?(?:U\.?S\.?A\.?|USA|AMERICA)/i.test(flat) ||
+      /PRODUCED\s+IN\s+(?:THE\s+)?(?:U\.?S\.?A\.?|USA)/i.test(flat) ||
       /BUY\s+AMERICA/i.test(flat) || /BUILD\s+AMERICA/i.test(flat) ||
-      /100%\s+Melted/i.test(flat) || /Country\s+of\s+Origin:\s*USA/i.test(flat)) {
+      /100%\s+Melted/i.test(flat) || /Country\s+of\s+Origin:\s*USA/i.test(flat) ||
+      /MATERIAL\s+ORIGIN\s*[:\-]?\s*DOMESTIC/i.test(flat)) {
     countryOrigin = 'USA';
     document.getElementById('country-origin').value = countryOrigin;
     found.push('Made in America');
@@ -2018,6 +2107,12 @@ function parseMtrText(text, area, allOcrWords) {
   if (poMatch) {
     document.getElementById('po-number').value = poMatch[1].trim();
     found.push('PO Number');
+  }
+
+  // ========== STEP 7.5: LOT NUMBER (informational — fastener/stud MTRs) ==========
+  var lotMatch = flat.match(/LOT\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{6,12})\b/i);
+  if (lotMatch) {
+    found.push('Lot #' + lotMatch[1] + ' (traceability — record with heat #)');
   }
 
   // ========== STEP 8: CVN ==========
@@ -2178,7 +2273,8 @@ async function reextractCurrentPage() {
   var pageText = '';
   var pageWords = [];
   if (pageData.type === 'text' && pageData.items) {
-    pageText = pageData.items.map(function(it) { return it.str; }).join(' ');
+    // Position-based ordering — see orderTextItemsByPosition for why this matters
+    pageText = orderTextItemsByPosition(pageData.items);
   } else if (pageData.type === 'ocr' && pageData.words) {
     pageText = pageData.words.map(function(w) { return w.str; }).join(' ');
     pageWords = pageData.words;
