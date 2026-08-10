@@ -172,6 +172,7 @@ html,body{width:100%;height:100%;font-family:'Times New Roman',Georgia,serif;bac
         <div class="field"><label>Heat #3</label><input id="heat3" placeholder="if applicable"></div>
         <div class="field"><label>Heat #4</label><input id="heat4" placeholder="if applicable"></div>
         <div class="field"><label>Heat #5</label><input id="heat5" placeholder="if applicable"></div>
+        <div class="field"><label>Coil Number(s)</label><input id="coil-number" placeholder="e.g. 2031307-1, 2031307-2"></div>
         <div class="field"><label>Country of Origin</label><input id="country-origin" placeholder="e.g. USA" style="font-weight:bold;color:#1a5c1a"></div>
         <div class="field-row">
           <div class="field"><label>CVN Zone</label>
@@ -2008,6 +2009,135 @@ function extractChemFromText(flat, template) {
 }
 
 
+// Extract heat number(s) from a column-aligned chemistry table
+// Handles mills that put heat number in a table column (e.g. "Coil Num/Wgt Heat Slab C Mn P S Si...")
+// rather than a "HEAT NO: 123456" label — proximity-based text regex can't find these because
+// the header and value may be many words apart in reading order once table headers/other columns
+// are flattened to text. Column position is the only reliable signal.
+function extractHeatFromTable(words) {
+  if (!words || words.length === 0) return [];
+  var rows = groupWordsIntoRows(words);
+  if (rows.length < 2) return [];
+
+  var allElements = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca','Co','W','Pb','Mg','Ce'];
+  var headerRow = -1;
+  var heatCol = null;
+
+  for (var r = 0; r < rows.length; r++) {
+    var elemCount = 0;
+    var rowHeatCol = null;
+    for (var c = 0; c < rows[r].length; c++) {
+      var txt = rows[r][c].str.trim().replace(/[:.\-\/]/g, '');
+      if (allElements.indexOf(txt) !== -1 || allElements.indexOf(txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()) !== -1) {
+        elemCount++;
+      }
+      // Detect "HEAT" (optionally merged with adjacent "NO"/"NUMBER"/"SLAB") as a column header
+      if (/^HEAT$/i.test(txt)) {
+        var hx0 = rows[r][c].x0, hx1 = rows[r][c].x1;
+        if (c + 1 < rows[r].length) {
+          var nextTxt = rows[r][c+1].str.trim().replace(/[:.\-\/]/g, '');
+          if (/^(NO|NUMBER|SLAB)$/i.test(nextTxt) && (rows[r][c+1].x0 - hx1) < 20) {
+            hx1 = rows[r][c+1].x1;
+          }
+        }
+        rowHeatCol = { x0: hx0, x1: hx1 };
+      }
+    }
+    if (elemCount >= 4) {
+      headerRow = r;
+      if (rowHeatCol) heatCol = rowHeatCol;
+      break;
+    }
+  }
+  if (headerRow === -1 || !heatCol) return [];
+
+  var heats = [];
+  for (var r2 = headerRow + 1; r2 < Math.min(headerRow + 8, rows.length); r2++) {
+    // A genuine chemistry data row has several decimal numeric values (e.g. "0.19", "0.008").
+    // Once we hit a row that isn't a chemistry data row (shipping weight, notes, next section),
+    // stop — this prevents grabbing unrelated text that happens to align with the heat column
+    // further down the page (e.g. paragraph text, other table headers).
+    var numericCount = 0;
+    for (var cn = 0; cn < rows[r2].length; cn++) {
+      if (/^\d+\.\d+$/.test(rows[r2][cn].str.trim())) numericCount++;
+    }
+    if (numericCount < 2) break;
+
+    for (var c2 = 0; c2 < rows[r2].length; c2++) {
+      var w = rows[r2][c2];
+      var wxc = (w.x0 + w.x1) / 2;
+      if (wxc >= heatCol.x0 - 5 && wxc <= heatCol.x1 + 5) {
+        var candidate = w.str.trim().replace(/[^A-Za-z0-9\-]/g, '');
+        // Heat numbers: alphanumeric, 4-14 chars, not a pure decimal chemistry value
+        if (/^[A-Za-z0-9][A-Za-z0-9\-]{3,13}$/.test(candidate) && !/^\d*\.\d+$/.test(candidate) && heats.indexOf(candidate) === -1) {
+          heats.push(candidate);
+        }
+      }
+    }
+  }
+  return heats;
+}
+
+// Extract coil number(s) from a column-aligned table (mirrors extractHeatFromTable)
+// e.g. Nucor Decatur puts "Coil Num/Wgt" as the first column in the chemistry table
+function extractCoilFromTable(words) {
+  if (!words || words.length === 0) return [];
+  var rows = groupWordsIntoRows(words);
+  if (rows.length < 2) return [];
+
+  var allElements = ['C','Mn','P','S','Si','Cu','Ni','Cr','V','Mo','Nb','Cb','Sn','B','Ti','N','Al','Ca','Co','W','Pb','Mg','Ce'];
+  var headerRow = -1;
+  var coilCol = null;
+
+  for (var r = 0; r < rows.length; r++) {
+    var elemCount = 0;
+    var rowCoilCol = null;
+    for (var c = 0; c < rows[r].length; c++) {
+      var txt = rows[r][c].str.trim().replace(/[:.\-\/]/g, '');
+      if (allElements.indexOf(txt) !== -1 || allElements.indexOf(txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()) !== -1) {
+        elemCount++;
+      }
+      if (/^COIL$/i.test(txt)) {
+        var cx0 = rows[r][c].x0, cx1 = rows[r][c].x1;
+        if (c + 1 < rows[r].length) {
+          var nextTxt = rows[r][c+1].str.trim().replace(/[:.\-\/]/g, '');
+          if (/^(NUM|NUMBER|NO|WGT|ID)/i.test(nextTxt) && (rows[r][c+1].x0 - cx1) < 20) {
+            cx1 = rows[r][c+1].x1;
+          }
+        }
+        rowCoilCol = { x0: cx0, x1: cx1 };
+      }
+    }
+    if (elemCount >= 4) {
+      headerRow = r;
+      if (rowCoilCol) coilCol = rowCoilCol;
+      break;
+    }
+  }
+  if (headerRow === -1 || !coilCol) return [];
+
+  var coils = [];
+  for (var r2 = headerRow + 1; r2 < Math.min(headerRow + 8, rows.length); r2++) {
+    var numericCount = 0;
+    for (var cn = 0; cn < rows[r2].length; cn++) {
+      if (/^\d+\.\d+$/.test(rows[r2][cn].str.trim())) numericCount++;
+    }
+    if (numericCount < 2) break;
+
+    for (var c2 = 0; c2 < rows[r2].length; c2++) {
+      var w = rows[r2][c2];
+      var wxc = (w.x0 + w.x1) / 2;
+      if (wxc >= coilCol.x0 - 5 && wxc <= coilCol.x1 + 5) {
+        var candidate = w.str.trim();
+        if (/^\d[\d\-.]{3,20}$/.test(candidate) && coils.indexOf(candidate) === -1) {
+          coils.push(candidate);
+        }
+      }
+    }
+  }
+  return coils;
+}
+
 // ===== MAIN PARSING FUNCTION =====
 // Combines knowledge-base mill identification + proven parsing strategies
 function parseMtrText(text, area, allOcrWords) {
@@ -2026,6 +2156,15 @@ function parseMtrText(text, area, allOcrWords) {
 
   // ========== STEP 1: HEAT NUMBERS (most critical) ==========
   var heatNums = [];
+
+  // Strategy 0: Column-aligned table extraction (e.g. Nucor Decatur/Gallatin coil certs
+  // that put heat number in a chemistry table column instead of a "HEAT NO:" label)
+  if (allOcrWords && allOcrWords.length > 0) {
+    var tableHeats = extractHeatFromTable(allOcrWords);
+    for (var th = 0; th < tableHeats.length; th++) {
+      if (heatNums.indexOf(tableHeats[th]) === -1) heatNums.push(tableHeats[th]);
+    }
+  }
 
   // Strategy 1: "HEAT NO.:123456" or "HEAT NO 123456" or "HEAT#123456"
   var heatLabelRe = /HEAT\s*(?:\/\s*SLAB)?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*([A-Za-z0-9]{5,12})/gi;
@@ -2098,6 +2237,7 @@ function parseMtrText(text, area, allOcrWords) {
   var matType = null;
   // Detect material type from explicit text patterns — NO default guessing
   if (/WELD\s*STUD|HEADED\s*STUD|STUD\s*WELD(?:ING)?\b/i.test(flat)) matType = 'studs';
+  else if (/GALVANIZED[^\n]{0,30}COIL|COIL[^\n]{0,30}GALVANIZED|COATING\s*WEIGHT|\bA653\b/i.test(flat)) matType = 'decking';
   else if (/\bW\d{2,}\s*[xX]\s*\d+/i.test(flat)) matType = 'beam';
   else if (/HSS|HOLLOW\s+STRUCT/i.test(flat)) matType = /SQUARE|RECT/i.test(flat) ? 'hss-square' : 'hss-round';
   else if (/\bCHANNEL\b|\bC\s*\d+\s*[xX]\s*\d+\.?\d*/i.test(flat)) matType = 'channel';
@@ -2182,6 +2322,12 @@ function parseMtrText(text, area, allOcrWords) {
     else if (/\bA572\s*-?\s*50\b/i.test(flat)) specDetected = 'A572-50';
     else if (/\bA36\b/i.test(flat)) specDetected = 'A36';
     else if (/\bA500\s*-?\s*(?:23\s*)?[BC]\b/i.test(flat)) specDetected = /C\b/i.test(flat.match(/A500[^\n]{0,10}/i)) ? 'A500-C' : 'A500-B';
+    else if (/\bA653\b/i.test(flat)) {
+      // Galvanized sheet/coil steel — grade number follows "GRADE" nearby (e.g. "A653 SS Grade 80 Class 3")
+      var a653GradeMatch = flat.match(/A653[^\n]{0,25}?GRADE\s*(\d{2,3})/i);
+      var a653Grade = a653GradeMatch ? a653GradeMatch[1] : null;
+      if (a653Grade && SPECS['A653-' + a653Grade]) specDetected = 'A653-' + a653Grade;
+    }
   }
 
   // A709-50W override: if A709-50W appears before A588 in text, prefer 50W
@@ -2267,6 +2413,29 @@ function parseMtrText(text, area, allOcrWords) {
   if (poMatch) {
     document.getElementById('po-number').value = poMatch[1].trim();
     found.push('PO Number');
+  }
+
+  // ========== STEP 7.4: COIL NUMBER (galvanized sheet/coil/decking MTRs) ==========
+  var coilNums = [];
+  if (allOcrWords && allOcrWords.length > 0) {
+    var tableCoils = extractCoilFromTable(allOcrWords);
+    for (var tc = 0; tc < tableCoils.length; tc++) {
+      if (coilNums.indexOf(tableCoils[tc]) === -1) coilNums.push(tableCoils[tc]);
+    }
+  }
+  if (coilNums.length === 0) {
+    var coilLabelMatch = flat.match(/COIL\s*NUMBER\s*\(?s?\)?\s*:?\s*([\dA-Za-z\-]+(?:\s*,\s*[\dA-Za-z\-]+)*)/i) ||
+                          flat.match(/COIL\s*(?:NO\.?|NUM|#)\s*[:\-]?\s*([\dA-Za-z\-]+(?:\s*,\s*[\dA-Za-z\-]+)*)/i);
+    if (coilLabelMatch) {
+      coilLabelMatch[1].split(',').forEach(function(c) {
+        var trimmed = c.trim();
+        if (trimmed && coilNums.indexOf(trimmed) === -1) coilNums.push(trimmed);
+      });
+    }
+  }
+  if (coilNums.length > 0) {
+    document.getElementById('coil-number').value = coilNums.join(', ');
+    found.push('Coil Number');
   }
 
   // ========== STEP 7.5: LOT NUMBER (informational — fastener/stud MTRs) ==========
