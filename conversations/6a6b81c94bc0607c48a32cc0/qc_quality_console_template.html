@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q.C. Quality Console — MTR Verification</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,'Times New Roman',serif;background:#f5f5f0;color:#1a1a1a;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* Header */
+#header{background:#1a3a5c;color:#fff;padding:6px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#header h1{font-size:17px;letter-spacing:3px;font-weight:normal;text-transform:uppercase}
+#header .subtitle{font-size:10px;color:#b0c4d8;letter-spacing:1px}
+#header .doc-type{font-size:11px;color:#c5a05e;border:1px solid #c5a05e;padding:2px 10px;border-radius:2px}
+
+/* Main layout */
+#main{display:flex;flex:1;overflow:hidden}
+#pdf-area{flex:1;overflow:auto;background:#e0e0db;padding:15px;position:relative}
+#sidebar{width:430px;min-width:430px;overflow-y:auto;background:#fff;border-left:2px solid #1a3a5c}
+
+/* PDF viewer */
+#pdf-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+#pdf-canvas{border:1px solid #aaa;box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:100%}
+#page-nav{display:flex;align-items:center;gap:12px;background:#fff;padding:6px 16px;border:1px solid #ccc;border-radius:3px;font-size:13px}
+#page-nav button{background:#1a3a5c;color:#fff;border:none;padding:4px 12px;cursor:pointer;font-family:Georgia,serif;font-size:12px;border-radius:2px}
+#page-nav button:disabled{opacity:.4;cursor:default}
+#drop-zone{border:2px dashed #999;border-radius:4px;padding:40px;text-align:center;color:#666;font-size:14px;cursor:pointer}
+#drop-zone.drag{border-color:#1a3a5c;background:#e8eef5}
+
+/* Document selector */
+#doc-selector{background:#1a3a5c;color:#fff;padding:8px 15px;display:flex;align-items:center;gap:10px;font-size:12px}
+#doc-selector select{background:#fff;color:#1a3a5c;border:none;padding:3px 8px;font-family:Georgia,serif;font-size:12px;border-radius:2px;flex:1}
+#doc-selector .label{color:#c5a05e;letter-spacing:1px;font-size:10px;text-transform:uppercase}
+
+/* Form fields */
+.section{padding:14px 15px;border-bottom:1px solid #e0e0d8}
+.section h3{font-size:13px;color:#1a3a5c;margin-bottom:8px;letter-spacing:1px}
+.field{margin-bottom:8px}
+.field label{display:block;font-size:10px;color:#555;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px;font-family:Arial,sans-serif}
+.field input,.field select{width:100%;padding:5px 7px;border:1px solid #ccc;font-family:Georgia,serif;font-size:13px;background:#fafafa;border-radius:2px}
+.field input:focus,.field select:focus{border-color:#1a3a5c;background:#fff;outline:none}
+.field input.prefilled{background:#e8f4e8;border-color:#8c8}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1}
+.step-tag{background:#1a3a5c;color:#fff;font-size:9px;padding:2px 8px;border-radius:2px;letter-spacing:1px;font-family:Arial,sans-serif}
+.step-section{transition:opacity .3s}
+.step-section.locked{opacity:.45;pointer-events:none}
+
+/* Chemistry table */
+.chem-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.chem-tbl th{background:#1a3a5c;color:#fff;padding:4px 6px;text-align:left;font-size:10px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.5px}
+.chem-tbl td{padding:4px 6px;border-bottom:1px solid #eee}
+.chem-pass{color:#1a7a30;font-weight:bold}
+.chem-fail{color:#c00;font-weight:bold}
+.chem-info{color:#666;font-size:10px}
+.heat-tabs{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.heat-tab{padding:4px 12px;background:#eee;border:1px solid #ccc;cursor:pointer;font-size:12px;border-radius:2px;font-family:Georgia,serif}
+.heat-tab.active{background:#1a3a5c;color:#fff;border-color:#1a3a5c}
+
+/* Approval */
+#approval-area{padding:14px 15px}
+.approval-banner{padding:10px;text-align:center;font-weight:bold;font-size:14px;letter-spacing:2px;margin-bottom:10px;border-radius:2px}
+.approval-banner.approved{background:#d4edda;color:#155724;border:2px solid #155724}
+.approval-banner.rejected{background:#f8d7da;color:#721c24;border:2px solid #721c24}
+.approval-banner.revise{background:#fff3cd;color:#856404;border:2px solid #856404}
+.approval-btns{display:flex;gap:8px;margin-top:10px}
+.approval-btns button{flex:1;padding:10px;border:none;cursor:pointer;font-family:Georgia,serif;font-size:13px;font-weight:bold;letter-spacing:1px;border-radius:2px}
+.btn-approve{background:#1a7a30;color:#fff}
+.btn-reject{background:#c00;color:#fff}
+.btn-revise{background:#c5a05e;color:#fff}
+.btn-primary{background:#1a3a5c;color:#fff;padding:8px 16px;border:none;cursor:pointer;font-family:Georgia,serif;font-size:13px;border-radius:2px;width:100%;margin-top:8px;letter-spacing:1px}
+.btn-primary:hover{background:#2a4a6c}
+.btn-secondary{background:#555;color:#fff;padding:6px 12px;border:none;cursor:pointer;font-family:Georgia,serif;font-size:12px;border-radius:2px}
+.note{font-size:11px;color:#888;margin-top:4px;font-style:italic}
+
+/* Stamp overlay */
+#stamp-canvas{position:absolute;pointer-events:none}
+
+/* Loading */
+#loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#666;font-size:14px}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Q.C. Quality Console</h1>
+    <div class="subtitle">Material Test Report Verification &amp; Approval System</div>
+  </div>
+  <div class="doc-type">MTR VERIFICATION</div>
+</div>
+
+<div id="main">
+  <div id="pdf-area">
+    <div id="loading">Loading document…</div>
+    <div id="pdf-wrap" style="display:none">
+      <div id="page-nav">
+        <button id="prev-page" onclick="prevPage()">◀ PREV</button>
+        <span>Page <span id="cur-page">1</span> of <span id="total-pages">1</span></span>
+        <button id="next-page" onclick="nextPage()">NEXT ▶</button>
+      </div>
+      <div style="position:relative">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="stamp-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div id="doc-selector" style="display:none">
+      <span class="label">Document</span>
+      <select id="doc-select" onchange="switchDocument()"></select>
+    </div>
+
+    <!-- STEP 1: MTR Information -->
+    <div class="section step-section" id="sec-step1">
+      <span class="step-tag">STEP 1</span>
+      <h3>MTR Information — Review &amp; Verify</h3>
+      <div class="field"><label>PO Number</label><input id="po-number" placeholder="e.g. 1867667"></div>
+      <div class="field"><label>Mill / Supplier</label><input id="mill-name" placeholder="e.g. Nucor-Yamato Steel"></div>
+      <div class="field-row">
+        <div class="field"><label>Material Type</label>
+          <select id="mat-type" onchange="onMaterialChange()">
+            <option value="">— Select —</option>
+            <option value="beam">Beam (W-Shape)</option><option value="channel">Channel</option><option value="angle">Angle</option>
+            <option value="flatbar">Flat Bar</option><option value="plate">Plate</option><option value="decking">Decking</option>
+            <option value="hss-round">HSS Round</option><option value="hss-square">HSS Square / Rect.</option>
+            <option value="pipe">Pipe</option><option value="round-bar">Round Bar</option><option value="sheet">Sheet</option>
+            <option value="square-bar">Square Bar</option><option value="studs">Studs</option>
+            <option value="bearings">Bearings</option><option value="hardware">Hardware (Bolts/Fasteners)</option>
+          </select>
+        </div>
+        <div class="field"><label>Specification</label><select id="spec-select" onchange="initChem()"></select></div>
+      </div>
+      <div class="field"><label id="type-label">Size</label><input id="beam-type" placeholder="e.g. W24x76"></div>
+      <div class="field"><label>Quantity</label><input id="quantity" placeholder="e.g. 40 ft 0 in"></div>
+      <div class="field"><label>Heat #1</label><input id="heat1" placeholder="e.g. 627779"></div>
+      <div class="field"><label>Heat #2</label><input id="heat2" placeholder="if applicable"></div>
+      <div class="field"><label>Heat #3</label><input id="heat3" placeholder="if applicable"></div>
+      <div class="field"><label>Heat #4</label><input id="heat4" placeholder="if applicable"></div>
+      <div class="field"><label>Heat #5</label><input id="heat5" placeholder="if applicable"></div>
+      <div class="field"><label>Coil Number(s)</label><input id="coil-number" placeholder="e.g. 2031307-1, 2031307-2"></div>
+      <div class="field"><label>Country of Origin</label><input id="country-origin" placeholder="e.g. USA" style="font-weight:bold;color:#1a5c1a"></div>
+      <div class="field-row">
+        <div class="field"><label>CVN Zone</label>
+          <select id="cvn-zone"><option value="" selected>— N/A —</option><option value="1">Zone 1 (70°F)</option><option value="2">Zone 2 (40°F)</option><option value="3">Zone 3 (10°F)</option></select>
+        </div>
+        <div class="field"><label>FCM</label>
+          <select id="fcm-select"><option value="N">No</option><option value="Y">Yes</option></select>
+        </div>
+      </div>
+      <div class="field"><label>Welding Code</label>
+        <select id="weld-code"><option value="D1.5">AWS D1.5 (Bridge)</option><option value="D1.1">AWS D1.1 (Structural)</option><option value="both">Both D1.1 &amp; D1.5</option><option value="none">N/A</option></select>
+      </div>
+      <button class="btn-primary" onclick="setStep(2)">REVIEW COMPLETE — PROCEED TO CHEMICAL CHECK</button>
+    </div>
+
+    <!-- STEP 2: Chemical Composition -->
+    <div class="section step-section locked" id="sec-step2">
+      <span class="step-tag">STEP 2</span>
+      <h3>Chemical Composition Verification</h3>
+      <div class="heat-tabs" id="heat-tabs"></div>
+      <table class="chem-tbl"><thead><tr><th>Element</th><th>Value %</th><th>Spec Limit</th><th>Status</th></tr></thead><tbody id="chem-body"></tbody></table>
+      <div id="chem-summary" style="margin-top:8px;font-size:12px"></div>
+      <button class="btn-primary" onclick="setStep(3)">CHEMISTRY VERIFIED — PROCEED TO APPROVAL</button>
+    </div>
+
+    <!-- STEP 3: Approval -->
+    <div class="section step-section locked" id="sec-step3" style="background:#faf8f0;border-bottom:2px solid #c5a05e">
+      <span class="step-tag">STEP 3</span>
+      <h3>Approval &amp; Certification</h3>
+      <div id="approval-status-area"></div>
+      <div class="field"><label>Reviewer Name</label><input id="reviewer-name" placeholder="Qualified Personnel"></div>
+      <div class="field"><label>Review Date</label><input id="review-date" type="date"></div>
+      <div class="field"><label>Inspection Comments</label><input id="review-comments" placeholder="Comments…"></div>
+      <div class="approval-btns">
+        <button class="btn-approve" onclick="submitApproval('Approved')">APPROVE</button>
+        <button class="btn-reject" onclick="submitApproval('Rejected')">REJECT</button>
+        <button class="btn-revise" onclick="submitApproval('Revise')">REVISE</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn-secondary" id="btn-download" onclick="downloadStamped()" disabled style="flex:1">DOWNLOAD STAMPED PDF</button>
+        <button class="btn-secondary" onclick="generateCertificate()" id="btn-cert" disabled style="flex:1">PRINT CERTIFICATE</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Session Records</h3>
+      <div id="records-list" style="font-size:12px;max-height:200px;overflow-y:auto"></div>
+      <button class="btn-secondary" onclick="clearRecords()" style="margin-top:6px">Clear Local Records</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====================================================================
+// Q.C. QUALITY CONSOLE — MTR Verification Module
+// Architecture: AI-extracted data (embedded) + standalone review tool
+// No regex, no templates, no OCR — the extraction is done by the agent
+// ====================================================================
+
+// === INJECTED MTR DATA ===
+// When the agent extracts MTR data from a PDF, it embeds the JSON here.
+var MTR_DATA = __MTR_DATA__;
+
+// === SPEC DATABASE ===
+var SPECS = {
+  'A588-A709-50W':{name:'ASTM A588 Gr B / A709 Gr 50W',weathering:true,elements:{C:{min:null,max:0.19,label:'Carbon'},Mn:{min:0.80,max:1.25,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:0.15,max:0.40,label:'Silicon'},Cu:{min:0.20,max:0.50,label:'Copper'},Ni:{min:null,max:0.50,label:'Nickel'},Cr:{min:0.40,max:0.70,label:'Chromium'},V:{min:0.01,max:0.10,label:'Vanadium'},Mo:{min:null,max:0.06,label:'Molybdenum'},Nb:{min:null,max:0.03,label:'Niobium'}}},
+  'A709-50W':{name:'ASTM A709 Gr 50W',weathering:true,elements:{C:{min:null,max:0.19,label:'Carbon'},Mn:{min:0.80,max:1.25,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:0.15,max:0.40,label:'Silicon'},Cu:{min:0.20,max:0.50,label:'Copper'},Ni:{min:null,max:0.50,label:'Nickel'},Cr:{min:0.40,max:0.70,label:'Chromium'},V:{min:0.01,max:0.10,label:'Vanadium'},Mo:{min:null,max:0.06,label:'Molybdenum'},Nb:{min:null,max:0.03,label:'Niobium'}}},
+  'A588':{name:'ASTM A588 Gr B',weathering:true,elements:{C:{min:null,max:0.20,label:'Carbon'},Mn:{min:0.75,max:1.35,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:0.15,max:0.50,label:'Silicon'},Cu:{min:0.20,max:0.50,label:'Copper'},Ni:{min:null,max:0.50,label:'Nickel'},Cr:{min:0.40,max:0.70,label:'Chromium'},V:{min:0.01,max:0.10,label:'Vanadium'}}},
+  'A992':{name:'ASTM A992',elements:{C:{min:null,max:0.23,label:'Carbon'},Mn:{min:null,max:1.35,label:'Manganese'},P:{min:null,max:0.025,label:'Phosphorus'},S:{min:null,max:0.035,label:'Sulfur'},Si:{min:null,max:0.40,label:'Silicon'},Cu:{min:null,max:0.60,label:'Copper'},Ni:{min:null,max:0.45,label:'Nickel'},Cr:{min:null,max:0.35,label:'Chromium'},Mo:{min:null,max:0.15,label:'Molybdenum'},V:{min:null,max:0.05,label:'Vanadium'},Nb:{min:null,max:0.05,label:'Niobium'}}},
+  'A572-50':{name:'ASTM A572 Gr 50',elements:{C:{min:null,max:0.23,label:'Carbon'},Mn:{min:null,max:1.35,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.40,label:'Silicon'}}},
+  'A709-50':{name:'ASTM A709 Gr 50',elements:{C:{min:null,max:0.23,label:'Carbon'},Mn:{min:null,max:1.35,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.40,label:'Silicon'}}},
+  'A36':{name:'ASTM A36',elements:{C:{min:null,max:0.26,label:'Carbon'},Mn:{min:null,max:1.20,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.40,label:'Silicon'},Cu:{min:0.20,max:null,label:'Copper (when spec.)'}}},
+  'A500-B':{name:'ASTM A500 Gr B (HSS)',elements:{C:{min:null,max:0.22,label:'Carbon'},Mn:{min:null,max:1.20,label:'Manganese'},P:{min:null,max:0.045,label:'Phosphorus'},S:{min:null,max:0.045,label:'Sulfur'},Cu:{min:0.18,max:null,label:'Copper (when spec.)'}}},
+  'A500-C':{name:'ASTM A500 Gr C (HSS)',elements:{C:{min:null,max:0.23,label:'Carbon'},Mn:{min:null,max:1.35,label:'Manganese'},P:{min:null,max:0.045,label:'Phosphorus'},S:{min:null,max:0.045,label:'Sulfur'},Cu:{min:0.18,max:null,label:'Copper (when spec.)'}}},
+  'A53-B':{name:'ASTM A53 Gr B (Pipe)',elements:{C:{min:null,max:0.30,label:'Carbon'},Mn:{min:null,max:1.20,label:'Manganese'},P:{min:null,max:0.050,label:'Phosphorus'},S:{min:null,max:0.045,label:'Sulfur'},Cu:{min:0.20,max:null,label:'Copper (when spec.)'}}},
+  'A106-B':{name:'ASTM A106 Gr B (Pipe)',elements:{C:{min:null,max:0.30,label:'Carbon'},Mn:{min:0.29,max:1.06,label:'Manganese'},P:{min:null,max:0.035,label:'Phosphorus'},S:{min:null,max:0.035,label:'Sulfur'},Si:{min:0.10,max:0.30,label:'Silicon'},Cr:{min:null,max:0.40,label:'Chromium'},Cu:{min:null,max:0.40,label:'Copper'},Mo:{min:null,max:0.15,label:'Molybdenum'},V:{min:null,max:0.08,label:'Vanadium'}}},
+  'A653-50':{name:'ASTM A653 SS Gr 50',elements:{C:{min:null,max:0.20,label:'Carbon'},Mn:{min:null,max:1.20,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'}}},
+  'A653-80':{name:'ASTM A653 SS Gr 80',elements:{C:{min:null,max:0.20,label:'Carbon'},Mn:{min:null,max:1.65,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'}}},
+  'A108-1018':{name:'ASTM A108 Gr 1018',elements:{C:{min:0.15,max:0.20,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1010':{name:'ASTM A108 Gr C1010 (Weld Stud)',elements:{C:{min:0.08,max:0.13,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1015':{name:'ASTM A108 Gr C1015 (Weld Stud)',elements:{C:{min:0.13,max:0.18,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1018':{name:'ASTM A108 Gr C1018 (Weld Stud)',elements:{C:{min:0.15,max:0.20,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'C1020':{name:'ASTM A108 Gr C1020 (Weld Stud)',elements:{C:{min:0.18,max:0.23,label:'Carbon'},Mn:{min:0.30,max:0.60,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'},Si:{min:null,max:0.30,label:'Silicon'}}},
+  'F1554-36':{name:'ASTM F1554 Gr 36',elements:{C:{min:null,max:0.26,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
+  'F1554-55':{name:'ASTM F1554 Gr 55',elements:{C:{min:null,max:0.27,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
+  'F1554-105':{name:'ASTM F1554 Gr 105',elements:{C:{min:null,max:0.28,label:'Carbon'},Mn:{min:0.60,max:0.90,label:'Manganese'},P:{min:null,max:0.040,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
+  'A325':{name:'ASTM A325 (Bolt)',elements:{C:{min:0.20,max:0.55,label:'Carbon'},Mn:{min:0.20,max:0.50,label:'Manganese'},P:{min:null,max:0.060,label:'Phosphorus'},S:{min:null,max:0.050,label:'Sulfur'}}},
+  'A490':{name:'ASTM A490 (Bolt)',elements:{C:{min:0.28,max:0.48,label:'Carbon'},Mn:{min:0.50,max:1.20,label:'Manganese'},P:{min:null,max:0.030,label:'Phosphorus'},S:{min:null,max:0.040,label:'Sulfur'},Si:{min:0.15,max:0.30,label:'Silicon'}}}
+};
+
+var MAT_SPECS = {beam:['A992','A572-50','A36','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],channel:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],angle:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],flatbar:['A36','A572-50','A588-A709-50W','A588','A709-50W','A500-B','A500-C'],plate:['A36','A572-50','A588-A709-50W','A709-50W','A588','A709-50','A500-B','A500-C'],decking:['A653-50','A653-80'],'hss-round':['A500-B','A500-C','A36','A572-50'],'hss-square':['A500-B','A500-C','A36','A572-50'],pipe:['A53-B','A106-B'],'round-bar':['A36','A108-1018'],sheet:['A653-50','A653-80'],'square-bar':['A36','A572-50'],studs:['C1010','C1015','C1018','C1020','A108-1018'],bearings:['A588-A709-50W','A709-50W','A36','A572-50'],hardware:['F1554-36','F1554-55','F1554-105','A325','A490']};
+var MAT_LABELS = {beam:'Size (e.g. W24x76)',channel:'Size (e.g. C12x25)',angle:'Size (e.g. L4x4x1/2)',flatbar:'Size (e.g. 1/2 x 4)',plate:'Size (Thickness x Width x Length)',decking:'Type (e.g. 1.5B 22ga)','hss-round':'Size (e.g. HSS 6x0.500)','hss-square':'Size (e.g. HSS 6x6x0.500)',pipe:'Size (e.g. 6in Sch 40)','round-bar':'Diameter (e.g. 1-1/2in)',sheet:'Size (Thickness x Width x Length)','square-bar':'Size (e.g. 1x1)',studs:'Stud Designation (e.g. SC 7/8 x 5-3/16)',bearings:'Type',hardware:'Type (e.g. A325 3/4 bolt)'};
+
+// Preheat tables (AWS D1.1 / D1.5)
+var D11_CAT_A=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:32},{t:0.75,p:32},{t:1.5,p:50},{t:2.5,p:150},{t:999,p:225}];
+var D11_CAT_B=[{t:0.125,p:32},{t:0.25,p:32},{t:0.5,p:50},{t:0.75,p:50},{t:1.5,p:150},{t:2.5,p:225},{t:999,p:300}];
+var D15_NONFCM=[{t:0.75,p:70,l:'Up to 3/4"'},{t:1.5,p:70,l:'3/4" to 1-1/2"'},{t:2.5,p:150,l:'1-1/2" to 2-1/2"'},{t:999,p:200,l:'Over 2-1/2"'}];
+var D15_FCM=[{t:0.375,p:70,l:'Up to 3/8"'},{t:0.75,p:100,l:'3/8" to 3/4"'},{t:1.5,p:150,l:'3/4" to 1-1/2"'},{t:2.5,p:200,l:'1-1/2" to 2-1/2"'},{t:999,p:300,l:'Over 2-1/2"'}];
+var CVN_REQ={1:{t:70,e:15},2:{t:40,e:15},3:{t:10,e:15}};
+var CVN_FCM={1:{t:70,e:25,s:20},2:{t:40,e:25,s:20},3:{t:10,e:25,s:20}};
+
+// === STATE ===
+var pdfDoc=null,curPage=1,scale=1.5,approvalState=null,currentStep=1,activeHeatIdx=0;
+var currentDocIdx=0;
+var pdfjsLib=window['pdfjsLib'];
+if(pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// === PDF LOADING ===
+async function loadPDF(url){
+  if(!url){document.getElementById('loading').textContent='No document URL provided.';return;}
+  try{
+    var loadingTask=pdfjsLib.getDocument(url);
+    pdfDoc=await loadingTask.promise;
+    document.getElementById('total-pages').textContent=pdfDoc.numPages;
+    document.getElementById('loading').style.display='none';
+    document.getElementById('pdf-wrap').style.display='flex';
+    renderPage(1);
+  }catch(e){
+    document.getElementById('loading').textContent='Failed to load PDF: '+e.message;
+  }
+}
+
+async function renderPage(num){
+  if(!pdfDoc)return;
+  curPage=num;
+  var page=await pdfDoc.getPage(num);
+  var viewport=page.getViewport({scale:scale});
+  var canvas=document.getElementById('pdf-canvas');
+  var ctx=canvas.getContext('2d');
+  canvas.width=viewport.width;
+  canvas.height=viewport.height;
+  // Resize stamp canvas to match
+  var stampCanvas=document.getElementById('stamp-canvas');
+  stampCanvas.width=viewport.width;
+  stampCanvas.height=viewport.height;
+  stampCanvas.style.width=viewport.width+'px';
+  stampCanvas.style.height=viewport.height+'px';
+  await page.render({canvasContext:ctx,viewport:viewport}).promise;
+  document.getElementById('cur-page').textContent=num;
+  document.getElementById('prev-page').disabled=(num<=1);
+  document.getElementById('next-page').disabled=(num>=pdfDoc.numPages);
+  // Re-draw stamp if approved
+  if(approvalState) drawStamp();
+}
+
+function prevPage(){if(curPage>1)renderPage(curPage-1)}
+function nextPage(){if(pdfDoc&&curPage<pdfDoc.numPages)renderPage(curPage+1)}
+
+// === DATA FILLING ===
+function fillFields(doc){
+  if(!doc)return;
+  var setVal=function(id,val){
+    var el=document.getElementById(id);
+    if(el&&val!==undefined&&val!==null&&val!==''){
+      el.value=val;
+      el.classList.add('prefilled');
+    }else if(el){
+      el.value='';
+      el.classList.remove('prefilled');
+    }
+  };
+  setVal('po-number',doc.poNumber);
+  setVal('mill-name',doc.mill);
+  setVal('beam-type',doc.size);
+  setVal('quantity',doc.quantity);
+  setVal('heat1',doc.heatNumbers&&doc.heatNumbers[0]);
+  setVal('heat2',doc.heatNumbers&&doc.heatNumbers[1]);
+  setVal('heat3',doc.heatNumbers&&doc.heatNumbers[2]);
+  setVal('heat4',doc.heatNumbers&&doc.heatNumbers[3]);
+  setVal('heat5',doc.heatNumbers&&doc.heatNumbers[4]);
+  setVal('coil-number',doc.coilNumbers?doc.coilNumbers.join(', '):'');
+  setVal('country-origin',doc.countryOfOrigin);
+
+  // Material type
+  if(doc.materialType){
+    var matSelect=document.getElementById('mat-type');
+    for(var i=0;i<matSelect.options.length;i++){
+      if(matSelect.options[i].value===doc.materialType){matSelect.selectedIndex=i;break;}
+    }
+  }
+  onMaterialChange();
+
+  // Specification
+  if(doc.spec){
+    var specSelect=document.getElementById('spec-select');
+    for(var i=0;i<specSelect.options.length;i++){
+      if(specSelect.options[i].value===doc.spec){specSelect.selectedIndex=i;break;}
+    }
+  }
+
+  // CVN / FCM / Welding code
+  if(doc.cvnZone){document.getElementById('cvn-zone').value=doc.cvnZone;}
+  if(doc.fcm){document.getElementById('fcm-select').value=doc.fcm;}
+  if(doc.weldingCode){document.getElementById('weld-code').value=doc.weldingCode;}
+
+  // Store chemistry data for this doc
+  window._currentChemistry=doc.chemistry||{};
+  initChem();
+}
+
+// === MATERIAL TYPE ===
+function onMaterialChange(){
+  var mat=document.getElementById('mat-type').value;
+  var specSelect=document.getElementById('spec-select');
+  var typeLabel=document.getElementById('type-label');
+  specSelect.innerHTML='<option value="">— Select —</option>';
+  if(mat&&MAT_SPECS[mat]){
+    for(var i=0;i<MAT_SPECS[mat].length;i++){
+      var s=MAT_SPECS[mat][i];
+      var opt=document.createElement('option');
+      opt.value=s;opt.textContent=SPECS[s]?SPECS[s].name:s;
+      specSelect.appendChild(opt);
+    }
+  }
+  if(mat&&MAT_LABELS[mat]){typeLabel.textContent=MAT_LABELS[mat];}
+  else{typeLabel.textContent='Size';}
+  // Add A500 always per user instruction
+  if(mat&&!['A500-B','A500-C'].every(function(s){return MAT_SPECS[mat]&&MAT_SPECS[mat].indexOf(s)!==-1})){
+    // already handled above
+  }
+}
+
+// === CHEMISTRY VERIFICATION ===
+function initChem(){
+  var spec=document.getElementById('spec-select').value;
+  var chem=window._currentChemistry||{};
+  var heatInputs=['heat1','heat2','heat3','heat4','heat5'];
+  var heats=[];
+  for(var i=0;i<heatInputs.length;i++){
+    var h=document.getElementById(heatInputs[i]).value.trim();
+    if(h) heats.push(h);
+  }
+
+  // Build heat tabs
+  var tabsEl=document.getElementById('heat-tabs');
+  tabsEl.innerHTML='';
+  for(var j=0;j<heats.length;j++){
+    var tab=document.createElement('span');
+    tab.className='heat-tab'+(j===activeHeatIdx?' active':'');
+    tab.textContent=heats[j];
+    tab.onclick=function(idx){return function(){activeHeatIdx=idx;initChem();}}(j);
+    tabsEl.appendChild(tab);
+  }
+
+  var body=document.getElementById('chem-body');
+  body.innerHTML='';
+
+  if(!spec||heats.length===0){
+    body.innerHTML='<tr><td colspan="4" style="color:#999;text-align:center;padding:10px">Select a specification and ensure heat numbers are entered.</td></tr>';
+    document.getElementById('chem-summary').innerHTML='';
+    return;
+  }
+
+  var specData=SPECS[spec];
+  var specElems=specData?specData.elements:{};
+  var heat=heats[activeHeatIdx]||heats[0];
+  var heatChem=chem[heat]||{};
+
+  var passCount=0,failCount=0,infoCount=0;
+
+  // Show spec-limited elements first
+  var specKeys=Object.keys(specElems);
+  for(var k=0;k<specKeys.length;k++){
+    var elem=specKeys[k];
+    var limit=specElems[elem];
+    var val=heatChem[elem];
+    var tr=document.createElement('tr');
+
+    // Element name
+    var td1=document.createElement('td');
+    td1.textContent=limit.label||elem;
+    tr.appendChild(td1);
+
+    // Value
+    var td2=document.createElement('td');
+    td2.textContent=val!==undefined?val:'—';
+    tr.appendChild(td2);
+
+    // Spec limit
+    var td3=document.createElement('td');
+    var limitStr='';
+    if(limit.min!==null&&limit.max!==null) limitStr=limit.min+'–'+limit.max+'%';
+    else if(limit.max!==null) limitStr='≤ '+limit.max+'%';
+    else if(limit.min!==null) limitStr='≥ '+limit.min+'%';
+    td3.textContent=limitStr;
+    tr.appendChild(td3);
+
+    // Status
+    var td4=document.createElement('td');
+    if(val!==undefined&&val!==''){
+      var numVal=parseFloat(val);
+      var pass=true;
+      if(limit.max!==null&&numVal>limit.max) pass=false;
+      if(limit.min!==null&&numVal<limit.min) pass=false;
+      td4.className=pass?'chem-pass':'chem-fail';
+      td4.textContent=pass?'✓ PASS':'✗ FAIL';
+      if(pass)passCount++;else failCount++;
+    }else{
+      td4.className='chem-info';
+      td4.textContent='Not reported';
+      infoCount++;
+    }
+    tr.appendChild(td4);
+    body.appendChild(tr);
+  }
+
+  // Show additional reported elements (not in spec limits)
+  var allReported=Object.keys(heatChem);
+  for(var m=0;m<allReported.length;m++){
+    var e=allReported[m];
+    if(specKeys.indexOf(e)!==-1) continue;
+    var tr2=document.createElement('tr');
+    var td1=document.createElement('td');td1.textContent=e;tr2.appendChild(td1);
+    var td2=document.createElement('td');td2.textContent=heatChem[e];tr2.appendChild(td2);
+    var td3=document.createElement('td');td3.textContent='—';td3.className='chem-info';tr2.appendChild(td3);
+    var td4=document.createElement('td');td4.textContent='Reported';td4.className='chem-info';tr2.appendChild(td4);
+    body.appendChild(tr2);
+    infoCount++;
+  }
+
+  var summary=document.getElementById('chem-summary');
+  var cls=failCount>0?'chem-fail':'chem-pass';
+  summary.innerHTML='<span class="'+cls+'">'+passCount+' passed, '+failCount+' failed, '+infoCount+' reported (no spec limit)</span>';
+}
+
+// === STEP NAVIGATION ===
+function setStep(step){
+  currentStep=step;
+  document.getElementById('sec-step1').classList.toggle('locked',step>1);
+  document.getElementById('sec-step2').classList.toggle('locked',step<2||step>2);
+  document.getElementById('sec-step3').classList.toggle('locked',step<3);
+  if(step>=2) initChem();
+  // Scroll to the step
+  var el=document.getElementById('sec-step'+step);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// === APPROVAL ===
+function submitApproval(status){
+  var reviewer=document.getElementById('reviewer-name').value.trim();
+  if(!reviewer){alert('Enter reviewer name before submitting approval.');return;}
+  approvalState=status;
+  var banner=document.getElementById('approval-status-area');
+  var cls=status==='Approved'?'approved':status==='Rejected'?'rejected':'revise';
+  banner.innerHTML='<div class="approval-banner '+cls+'">STATUS: '+status.toUpperCase()+' — '+reviewer+' — '+document.getElementById('review-date').value+'</div>';
+  drawStamp();
+  document.getElementById('btn-download').disabled=false;
+  document.getElementById('btn-cert').disabled=false;
+
+  // Save to localStorage
+  var records=JSON.parse(localStorage.getItem('qc_records')||'[]');
+  var specVal=document.getElementById('spec-select').value;
+  records.push({
+    po:document.getElementById('po-number').value,
+    heat:document.getElementById('heat1').value,
+    spec:specVal?SPECS[specVal].name:'',
+    type:document.getElementById('mat-type').selectedOptions[0]?document.getElementById('mat-type').selectedOptions[0].text:'',
+    status:status,
+    reviewer:reviewer,
+    date:document.getElementById('review-date').value,
+    file:MTR_DATA.fileName||'',
+    comments:document.getElementById('review-comments').value,
+    timestamp:new Date().toISOString()
+  });
+  localStorage.setItem('qc_records',JSON.stringify(records));
+  renderRecords();
+}
+
+function drawStamp(){
+  var canvas=document.getElementById('stamp-canvas');
+  var ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!approvalState)return;
+  var x=canvas.width*0.65,y=canvas.height*0.15;
+  var color=approvalState==='Approved'?'#1a7a30':approvalState==='Rejected'?'#c00':'#c5a05e';
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(-0.15);
+  ctx.strokeStyle=color;
+  ctx.lineWidth=4;
+  ctx.strokeRect(-120,-40,240,80);
+  ctx.font='bold 28px Georgia, serif';
+  ctx.fillStyle=color;
+  ctx.textAlign='center';
+  ctx.fillText(approvalState.toUpperCase(),0,-5);
+  var reviewer=document.getElementById('reviewer-name').value.trim();
+  var date=document.getElementById('review-date').value;
+  ctx.font='12px Georgia, serif';
+  ctx.fillText(reviewer+' — '+date,0,20);
+  ctx.restore();
+}
+
+function downloadStamped(){
+  var pdfCanvas=document.getElementById('pdf-canvas');
+  var stampCanvas=document.getElementById('stamp-canvas');
+  var combined=document.createElement('canvas');
+  combined.width=pdfCanvas.width;
+  combined.height=pdfCanvas.height;
+  var ctx=combined.getContext('2d');
+  ctx.drawImage(pdfCanvas,0,0);
+  ctx.drawImage(stampCanvas,0,0);
+  var link=document.createElement('a');
+  link.download=(MTR_DATA.fileName||'mtr').replace(/\.pdf$/i,'')+'_stamped.png';
+  link.href=combined.toDataURL('image/png');
+  link.click();
+}
+
+function generateCertificate(){
+  var specVal=document.getElementById('spec-select').value;
+  var spec=specVal?SPECS[specVal]:{name:'—'};
+  var matLabel=document.getElementById('mat-type').selectedOptions[0]?document.getElementById('mat-type').selectedOptions[0].text:'—';
+  var reviewer=document.getElementById('reviewer-name').value.trim();
+  var date=document.getElementById('review-date').value;
+  var status=approvalState||'Pending';
+  var sc=status==='Approved'?'#1a7a30':status==='Rejected'?'#c00':'#c5a05e';
+  var w=window.open('', '_blank');
+  w.document.write('<!DOCTYPE html><html><head><title>Q.C. Quality Console — '+status+'</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Georgia,"Times New Roman",serif;color:#1a1a1a;padding:40px;max-width:800px;margin:0 auto}.hdr{background:#1a3a5c;color:#fff;padding:16px 24px;border-bottom:3px solid #c5a05e;margin:-40px -40px 20px}.hdr h1{font-size:18px;letter-spacing:2px;font-weight:normal}.hdr .sub{font-size:11px;color:#b0c4d8;margin-top:2px}.stamp{text-align:center;margin:30px 0}.stamp-box{display:inline-block;border:4px solid '+sc+';padding:10px 30px;font-size:28px;font-weight:bold;text-transform:uppercase;color:'+sc+';transform:rotate(-3deg)}table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}table td{padding:6px 10px;border-bottom:1px solid #ddd}table td:first-child{font-weight:bold;color:#1a3a5c;width:35%}.sig{margin-top:40px;display:flex;justify-content:space-between;font-size:13px}.sig-line{border-top:1px solid #333;padding-top:4px;width:200px;text-align:center;margin-top:40px}.footer{margin-top:30px;padding-top:10px;border-top:1px solid #999;font-size:10px;color:#888}.comments{margin:16px 0;padding:12px;border-left:4px solid '+sc+';background:#fafafa;font-size:12px}</style></head><body><div class="hdr"><h1>Q.C. QUALITY CONSOLE</h1><div class="sub">Material Test Report Verification &amp; Approval Certificate</div></div><div class="stamp"><div class="stamp-box">'+status+'</div></div><table>'+
+    '<tr><td>PO Number</td><td>'+(document.getElementById('po-number').value||'—')+'</td></tr>'+
+    '<tr><td>Mill / Supplier</td><td>'+(document.getElementById('mill-name').value||'—')+'</td></tr>'+
+    '<tr><td>Material Type</td><td>'+matLabel+'</td></tr>'+
+    '<tr><td>Specification</td><td>'+spec.name+'</td></tr>'+
+    '<tr><td>Size / Designation</td><td>'+(document.getElementById('beam-type').value||'—')+'</td></tr>'+
+    '<tr><td>Quantity</td><td>'+(document.getElementById('quantity').value||'—')+'</td></tr>'+
+    '<tr><td>Heat #1</td><td>'+(document.getElementById('heat1').value||'—')+'</td></tr>'+
+    '<tr><td>Heat #2</td><td>'+(document.getElementById('heat2').value||'—')+'</td></tr>'+
+    '<tr><td>Coil Number(s)</td><td>'+(document.getElementById('coil-number').value||'—')+'</td></tr>'+
+    '<tr><td>Country of Origin</td><td>'+(document.getElementById('country-origin').value||'—')+'</td></tr>'+
+    '<tr><td>File Name</td><td>'+(MTR_DATA.fileName||'—')+'</td></tr>'+
+    '<tr><td>Welding Code</td><td>'+(document.getElementById('weld-code').value==='both'?'D1.1 & D1.5':document.getElementById('weld-code').value==='none'?'N/A':'AWS '+document.getElementById('weld-code').value)+'</td></tr>'+
+    '</table>'+(document.getElementById('review-comments').value?'<div class="comments"><strong>Inspection Comments:</strong><br>'+document.getElementById('review-comments').value+'</div>':'')+
+    '<div class="sig"><div><div class="sig-line">'+reviewer+'</div>Reviewed By (Qualified Personnel)</div><div><div class="sig-line">'+date+'</div>Date</div></div>'+
+    '<div class="footer">Certificate generated: '+new Date().toLocaleString()+'<br>Q.C. Quality Console — MTR Verification Module<br>This certificate verifies that the above MTR has been reviewed and '+status.toLowerCase()+' by qualified personnel.</div>'+
+    '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print()},500)}</scr'+'ipt></body></html>');
+  w.document.close();
+}
+
+// === RECORDS ===
+function renderRecords(){
+  var records=JSON.parse(localStorage.getItem('qc_records')||'[]');
+  var el=document.getElementById('records-list');
+  if(records.length===0){el.innerHTML='<div style="color:#999">No records yet.</div>';return;}
+  el.innerHTML='';
+  for(var i=records.length-1;i>=0&&i>=records.length-20;i--){
+    var r=records[i];
+    var cls=r.status==='Approved'?'chem-pass':r.status==='Rejected'?'chem-fail':'chem-info';
+    var div=document.createElement('div');
+    div.style.cssText='padding:4px 0;border-bottom:1px solid #eee';
+    div.innerHTML='<span class="'+cls+'">['+r.status+']</span> '+r.heat+' — '+(r.spec||'')+' — '+(r.reviewer||'')+' — '+(r.date||'');
+    el.appendChild(div);
+  }
+}
+
+function clearRecords(){
+  if(confirm('Clear all local session records?')){
+    localStorage.removeItem('qc_records');
+    renderRecords();
+  }
+}
+
+// === DOCUMENT SWITCHING (multi-doc MTRs) ===
+function switchDocument(){
+  var sel=document.getElementById('doc-select');
+  currentDocIdx=parseInt(sel.value)||0;
+  var docs=MTR_DATA.documents||[];
+  if(docs[currentDocIdx]){
+    fillFields(docs[currentDocIdx]);
+    // Navigate PDF to this doc's page
+    if(pdfDoc&&docs[currentDocIdx].pageIndex!==undefined){
+      renderPage(docs[currentDocIdx].pageIndex+1);
+    }
+    // Reset steps
+    currentStep=1;
+    document.getElementById('sec-step2').classList.add('locked');
+    document.getElementById('sec-step3').classList.add('locked');
+    document.getElementById('sec-step1').classList.remove('locked');
+    approvalState=null;
+    document.getElementById('approval-status-area').innerHTML='';
+    document.getElementById('btn-download').disabled=true;
+    document.getElementById('btn-cert').disabled=true;
+  }
+}
+
+// === INIT ===
+function init(){
+  // Set today's date
+  document.getElementById('review-date').value=new Date().toISOString().split('T')[0];
+
+  // Setup document selector if multiple documents
+  var docs=MTR_DATA.documents||[];
+  if(docs.length>1){
+    var sel=document.getElementById('doc-select');
+    document.getElementById('doc-selector').style.display='flex';
+    for(var i=0;i<docs.length;i++){
+      var opt=document.createElement('option');
+      opt.value=i;
+      var label=docs[i].mill||('Page '+(docs[i].pageIndex+1));
+      if(docs[i].heatNumbers&&docs[i].heatNumbers[0]) label+=' — Heat '+docs[i].heatNumbers[0];
+      opt.textContent=label;
+      sel.appendChild(opt);
+    }
+  }
+
+  // Fill first document
+  if(docs.length>0){
+    fillFields(docs[0]);
+  }else{
+    onMaterialChange();
+  }
+
+  // Load PDF
+  if(MTR_DATA.fileUrl){
+    loadPDF(MTR_DATA.fileUrl);
+  }else{
+    document.getElementById('loading').textContent='No document loaded. Upload a PDF to begin.';
+  }
+
+  renderRecords();
+}
+
+// Start
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
