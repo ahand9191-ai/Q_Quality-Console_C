@@ -1,0 +1,37 @@
+{
+  "name": "MTR AI Extraction",
+  "description": "Triggers agent to extract MTR data when a new record is uploaded",
+  "trigger": {
+    "condition": "${ .trigger.data.extractionStatus == \"pending\" }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "MtrRecord"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "mtr_extraction",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "extract": {
+          "call": "invoke_superagent_step",
+          "with": {
+            "message": "Extract MTR data from record ${ .trigger.entity_id }"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Extract MTR",
+            "description": "AI extraction"
+          }
+        }
+      }
+    ]
+  }
+}
