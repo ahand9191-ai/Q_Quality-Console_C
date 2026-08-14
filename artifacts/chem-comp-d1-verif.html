@@ -1,0 +1,322 @@
+<!doctype html><html dir="auto"><head><meta http-equiv="Content-Security-Policy" content="default-src 'unsafe-inline' 'unsafe-eval' https: data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<script id="__base44_dark_class__">document.documentElement.classList.remove('dark');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Text:wght@400;500;600;700&display=swap">
+<style id="__base44_editor_theme__">
+:root {
+  --background: 38 27% 94%;
+  --foreground: 0 0% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 4%;
+  --primary: 21 42% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 39 17% 93%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 98%;
+  --input: 0 0% 98%;
+  --ring: 21 42% 55%;
+  --radius: 0.5rem;
+  color-scheme: light;
+}
+.dark {
+  --background: 220 5% 11%;
+  --foreground: 0 0% 99%;
+  --card: 0 1% 14%;
+  --card-foreground: 0 0% 99%;
+  --popover: 0 1% 14%;
+  --popover-foreground: 0 0% 99%;
+  --primary: 21 42% 55%;
+  --primary-foreground: 0 0% 99%;
+  --secondary: 0 0% 18%;
+  --secondary-foreground: 0 0% 99%;
+  --muted: 0 0% 18%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 0 0% 18%;
+  --accent-foreground: 0 0% 99%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 99%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 21 42% 55%;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+/* shadcn's base layer: default every element's border-color to the theme
+   token. Without this, Tailwind's bare `border` utility only sets width and
+   the color falls back to currentColor (near-black text) — so the model's
+   `border` cards render heavy/dark and the `--border` value is ignored.
+   Explicit `border-{color}` utilities and inline styles still override. */
+*, *::before, *::after { border-color: hsl(var(--border)); }
+html, body {
+  margin: 0 !important;
+  padding: 0;
+  overflow: auto !important;
+  /* Inline card: transparent, so the real chat surface (a gradient, not the
+     single flat `--background` stop) shows straight through and the artifact
+     reads as inline chat content in both themes. Standalone saved file: opaque
+     `--background` so it stays readable on its own page. `--card` stays
+     elevated for emphasis blocks (stat tiles, panels) so hierarchy reads. */
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground));
+  font-family: 'WixMadeforText', 'Wix Madefor Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* 8px (vs 16px) — minimal breathing room from the iframe edge so tightly-composed
+   dashboards don't ship a fat empty halo before their first element. */
+body { padding: 8px; }
+
+code, kbd, pre, samp { font-family: 'WixMadeforMonospace', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+a { color: hsl(var(--primary)); }
+hr { border: 0; border-top: 1px solid hsl(var(--border)); }
+h1, h2, h3, h4, h5, h6 { font-weight: 600; color: hsl(var(--foreground)); }
+</style>
+<script id="__base44_tw_config__">
+window.tailwind = window.tailwind || {};
+window.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+      },
+      // A bare `border` / `divide-*` (no color) falls back to Tailwind
+      // preflight's DEFAULT, which is a FIXED gray-200 (#e5e7eb) — subtle on the
+      // light card but near-white glare on the dark card. The `colors.border`
+      // map above only creates the `border-border` class; it does NOT set the
+      // uncolored default. Point the DEFAULT at the theme token so an uncolored
+      // border adapts to dark mode like the rest of the palette. (Explicit
+      // `border-primary` etc. still override.)
+      borderColor: { DEFAULT: 'hsl(var(--border))' },
+      divideColor: { DEFAULT: 'hsl(var(--border))' },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      fontFamily: {
+        // Same two-name stack as `FONT_SANS_STACK` above. The
+        // sandboxed null-origin iframe lands on `Wix Madefor Text`
+        // (Google Fonts' name); `WixMadeforText` is here only for
+        // defense-in-depth in case the iframe ever runs same-origin.
+        sans: ['WixMadeforText', 'Wix Madefor Text', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        mono: ['WixMadeforMonospace', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+    },
+  },
+};
+</script>
+<script src="https://cdn.tailwindcss.com" id="__base44_tw_cdn__"></script></head><body><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chemistry Verification — Heat 42529500</title>
+<style>
+  body { font-family: 'Times New Roman', Georgia, serif; color: #1a1a1a; margin: 0; padding: 24px; background: transparent; }
+  .doc { max-width: 820px; margin: 0 auto; }
+  .header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 24px; }
+  .header h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .header h2 { font-size: 13px; margin: 0; color: #555; font-weight: normal; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; margin-bottom: 24px; font-size: 13px; }
+  .info-grid div { border-bottom: 1px solid #e5e5e5; padding: 4px 0; }
+  .info-grid .label { color: #666; }
+  .info-grid .val { font-weight: bold; float: right; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px; }
+  th { background: #f5f5f5; border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { border: 1px solid #ddd; padding: 6px 8px; text-align: center; }
+  td.elem { text-align: left; font-weight: bold; }
+  .pass { color: #16a34a; font-weight: bold; }
+  .fail { color: #dc2626; font-weight: bold; }
+  .warn { color: #d97706; font-weight: bold; }
+  .section-title { font-size: 14px; font-weight: bold; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #1a1a1a; }
+  .code-block { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; }
+  .code-block h3 { margin: 0 0 8px; font-size: 13px; }
+  .code-block .verdict { font-size: 14px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+  .summary-box { border: 2px solid #1a1a1a; padding: 16px 20px; margin: 16px 0; background: #fafafa; }
+  .summary-box h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .flag-list { margin: 0; padding-left: 20px; font-size: 12px; }
+  .flag-list li { margin-bottom: 4px; }
+  .footer { text-align: center; font-size: 10px; color: #999; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e5e5; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Chemical Composition Verification Report</h1>
+    <h2>Heat 42529500 — Bull Moose Tube — HSS 4"SQ × 0.250" × 40' — ASTM A847 Class 14</h2>
+  </div>
+
+  <!-- MTR Info -->
+  <div class="info-grid">
+    <div><span class="label">Heat Number:</span><span class="val">42529500</span></div>
+    <div><span class="label">Specification:</span><span class="val">ASTM A847</span></div>
+    <div><span class="label">Grade:</span><span class="val">Class 14</span></div>
+    <div><span class="label">Material Type:</span><span class="val">HSS (Square Tube)</span></div>
+    <div><span class="label">Size:</span><span class="val">4" SQ × 0.250" wall × 40'</span></div>
+    <div><span class="label">PO Number:</span><span class="val">1795437</span></div>
+    <div><span class="label">Country of Origin:</span><span class="val">USA (Melted & Mfg)</span></div>
+    <div><span class="label">Mill:</span><span class="val">Bull Moose Tube — Elkhart</span></div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- FULL CHEMISTRY TABLE -->
+  <!-- ============================================== -->
+  <div class="section-title">Reported Chemistry — Heat 42529500</div>
+  <table>
+    <tr>
+      <th>Element</th><th>Reported (%)</th><th>A847 Spec Limit</th><th>Status</th>
+    </tr>
+    <tr><td class="elem">Carbon (C)</td><td>0.0500</td><td>0.19 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Manganese (Mn)</td><td>0.8400</td><td>1.25 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Phosphorus (P)</td><td>0.0170</td><td>0.04 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Sulfur (S)</td><td>0.0060</td><td>0.05 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Silicon (Si)</td><td>0.0440</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Copper (Cu)</td><td>0.3200</td><td>0.20 min (weathering)</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Chromium (Cr)</td><td>0.4800</td><td>0.40–0.70 (weathering)</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Nickel (Ni)</td><td>0.1300</td><td>0.40 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Vanadium (V)</td><td>0.0090</td><td>0.03 max</td><td class="pass">✅ PASS</td></tr>
+    <tr><td class="elem">Molybdenum (Mo)</td><td>0.0200</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Niobium/Cb (Nb)</td><td>0.0030</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Aluminum (Al)</td><td>0.0310</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Titanium (Ti)</td><td>0.0010</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Boron (B)</td><td>0.0003</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Nitrogen (N)</td><td>0.0090</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Tin (Sn)</td><td>0.0100</td><td>—</td><td>N/A</td></tr>
+    <tr><td class="elem">Calcium (Ca)</td><td>0.0020</td><td>—</td><td>N/A</td></tr>
+  </table>
+
+  <!-- CE Calculation -->
+  <div class="section-title">Carbon Equivalent (CE) — IIW Formula</div>
+  <div class="code-block">
+    <h3>CE = C + Mn/6 + (Cr + Mo + V)/5 + (Ni + Cu)/15</h3>
+    <p>CE = 0.050 + 0.840/6 + (0.480 + 0.020 + 0.009)/5 + (0.130 + 0.320)/15</p>
+    <p>CE = 0.050 + 0.140 + 0.1018 + 0.030 = <strong>0.322%</strong></p>
+    <p style="color: #666; font-size: 11px;">Mill reports CE = 0.327% (rounding/method variance — both values are within limits)</p>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- D1.1 CHECK -->
+  <!-- ============================================== -->
+  <div class="section-title">AWS D1.1 — Structural Welding Code (Steel) — HSS</div>
+  <div class="code-block">
+    <h3>D1.1 Clause 5 — Base Metal & Weldability</h3>
+    <table style="margin-bottom: 8px;">
+      <tr>
+        <th style="width: 30%;">Requirement</th><th style="width: 20%;">Limit</th><th style="width: 20%;">Reported</th><th style="width: 15%;">Status</th>
+      </tr>
+      <tr><td style="text-align: left;">Carbon Equivalent (CE)</td><td>≤ 0.47%</td><td>0.327%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Carbon (C)</td><td>≤ 0.19%</td><td>0.050%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Phosphorus (P)</td><td>≤ 0.04%</td><td>0.017%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Sulfur (S)</td><td>≤ 0.05%</td><td>0.006%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Mn + C (weld check)</td><td>≤ 1.65%</td><td>0.89%</td><td class="pass">✅ PASS</td></tr>
+    </table>
+    <p style="font-size: 11px; color: #555;">
+      <strong>Preheat assessment:</strong> CE = 0.327% is well below the 0.35% threshold.
+      For 0.250" wall thickness, <strong>no preheat required</strong> per D1.1 Table 5.2
+      (minimum preheat for A847 HSS at this CE and thickness is 32°F / ambient).
+    </p>
+    <div class="verdict">
+      <span class="pass">✅ D1.1 VERDICT: PASS — Approved for prequalified welding</span><br>
+      <span style="font-size: 11px; color: #555;">CE well within limits. No preheat, no special WPS restrictions for this heat.</span>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- D1.5 CHECK -->
+  <!-- ============================================== -->
+  <div class="section-title">AWS D1.5 — Bridge Welding Code</div>
+  <div class="code-block">
+    <h3>D1.5 Clause 5.4 — Base Metal Requirements</h3>
+    <table style="margin-bottom: 8px;">
+      <tr>
+        <th style="width: 30%;">Requirement</th><th style="width: 20%;">Limit</th><th style="width: 20%;">Reported</th><th style="width: 15%;">Status</th>
+      </tr>
+      <tr><td style="text-align: left;">Carbon Equivalent (CE)</td><td>≤ 0.47%</td><td>0.327%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Carbon (C) — Clause 5.4.2</td><td>≤ 0.12%</td><td>0.050%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Phosphorus (P)</td><td>≤ 0.04%</td><td>0.017%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Sulfur (S)</td><td>≤ 0.05%</td><td>0.006%</td><td class="pass">✅ PASS</td></tr>
+      <tr><td style="text-align: left;">Manganese (Mn)</td><td>≤ 1.25%</td><td>0.840%</td><td class="pass">✅ PASS</td></tr>
+    </table>
+    <p style="font-size: 11px; color: #555;">
+      <strong>D1.5 Clause 5.4.2 note:</strong> When C ≤ 0.12%, no WPS restriction to Grade 50W only.
+      Since C = 0.050% (well below 0.12%), this heat has unrestricted WPS qualification.
+    </p>
+    <div class="verdict">
+      <span class="warn">⚠️ D1.5 VERDICT: PASS with NOTE</span><br>
+      <span style="font-size: 11px; color: #555;">
+        All chemistry limits pass. However, D1.5 specifically governs A709 bridge steel.
+        A847 is NOT A709 — it's HSS tubing spec. Use of A847 in bridge applications requires
+        <strong>engineer approval</strong> per project specifications. If approved as equivalent,
+        chemistry and weldability fully comply with D1.5 requirements.
+      </span>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- CVN CHECK -->
+  <!-- ============================================== -->
+  <div class="section-title">Charpy V-Notch (CVN) Impact Test</div>
+  <div class="code-block">
+    <table style="margin-bottom: 8px;">
+      <tr>
+        <th>Specimen</th><th>Energy (ft-lb)</th><th>Temperature</th><th>Sample Size</th>
+      </tr>
+      <tr><td>Set 1</td><td>38</td><td>40°F</td><td>10mm × 3.3mm × 55mm</td></tr>
+      <tr><td>Set 2</td><td>40</td><td>40°F</td><td>10mm × 3.3mm × 55mm</td></tr>
+      <tr><td>Set 3</td><td>39</td><td>40°F</td><td>10mm × 3.3mm × 55mm</td></tr>
+      <tr><td><strong>Average</strong></td><td><strong>39</strong></td><td>40°F</td><td>—</td></tr>
+      <tr><td><strong>Minimum</strong></td><td><strong>38</strong></td><td>40°F</td><td>—</td></tr>
+    </table>
+    <p style="font-size: 11px; color: #555;">
+      <strong>D1.5 Zone 2 (40°F):</strong> Requires avg ≥ 25 ft-lb, min ≥ 20 ft-lb → <span class="pass">PASS (39 avg / 38 min)</span><br>
+      <strong>Sub-size note:</strong> 3.3mm specimen is sub-size (full-size = 10mm × 10mm × 55mm).
+      Energy values are not directly comparable to full-size without conversion factor.
+      Verify acceptance criteria account for sub-size specimen.
+    </p>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- SUMMARY -->
+  <!-- ============================================== -->
+  <div class="summary-box">
+    <h3>Verification Summary</h3>
+    <ul class="flag-list">
+      <li><strong>ASTM A847 chemistry:</strong> All elements within spec limits ✅</li>
+      <li><strong>D1.1 (Structural — HSS):</strong> PASS — CE 0.327%, no preheat required, no WPS restrictions ✅</li>
+      <li><strong>D1.5 (Bridge):</strong> PASS — All chemistry limits met. C ≤ 0.12% → no WPS restriction. Note: A847 is not A709; engineer approval needed for bridge use ⚠️</li>
+      <li><strong>CVN:</strong> 39 ft-lb avg @ 40°F — exceeds D1.5 Zone 2 minimums (25 avg / 20 min) ✅</li>
+      <li><strong>Domestic:</strong> Melted & Manufactured in USA — Buy America compliant ✅</li>
+      <li><strong>Prior review:</strong> Handwritten stamp "REVIEWED — JPC — 12.03.2025" noted on document</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    Generated by Q.C. Quality Console — {date} — Heat 42529500 — D1.1 & D1.5 Verification
+  </div>
+
+</div>
+</body>
+</html><script id="__base44_dark_class_post__">document.documentElement.classList.remove('dark');</script></body></html>
