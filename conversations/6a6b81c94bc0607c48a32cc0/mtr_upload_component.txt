@@ -1,0 +1,410 @@
+// ============================================================
+// MTR Upload Component — paste this into the MTR Review page
+// ============================================================
+// HOW TO USE:
+// 1. Open the Base44 builder editor for Q.C. Quality Console
+// 2. Go to the MTR Review page
+// 3. Switch to code view (or add a custom component)
+// 4. Paste this entire file as the page component
+// 5. Save and publish
+// ============================================================
+
+import React, { useState, useRef, useCallback } from 'react';
+import { MtrRecord } from '@/api/entities';
+
+// --- Base44 SDK imports (adjust paths if needed) ---
+// For file upload — try these patterns. Base44 apps typically expose
+// a file upload helper. If the exact path differs, check your app's
+// /api/ folder or use the fetch fallback below.
+//
+// Option A (preferred): SDK helper
+// import { uploadFile } from '@/api/files';
+//
+// Option B: Direct fetch to the upload endpoint
+// const uploadUrl = '/api/upload';  // adjust if needed
+
+// For calling the backend function extractMtr:
+// Option A: SDK helper
+// import { extractMtr } from '@/api/functions';
+//
+// Option B: Direct fetch
+const EXTRACT_MTR_URL = '/api/functions/extractMtr';
+
+export default function MtrUploadReview() {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(null);
+  const [uploadedFileName, setUploadedFileName] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // ---- Step 1: Handle file selection (click or drag-drop) ----
+  const handleFileSelect = useCallback(async (file) => {
+    if (!file) return;
+    setUploadError(null);
+    setExtractedData(null);
+    setSaveStatus(null);
+    setIsUploading(true);
+
+    try {
+      // ---- Step 2: Upload file to Base44 storage ----
+      // Try the SDK upload helper first. If that import path doesn't work,
+      // use the fetch-based upload below.
+
+      let fileUrl = null;
+
+      // --- SDK approach (uncomment if import works) ---
+      // const uploadResult = await uploadFile(file);
+      // fileUrl = uploadResult.file_url || uploadResult.url || uploadResult;
+
+      // --- Fetch approach (fallback) ---
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+      }
+      const uploadResult = await uploadResponse.json();
+      fileUrl = uploadResult.file_url || uploadResult.url || uploadResult;
+
+      setUploadedFileUrl(fileUrl);
+      setUploadedFileName(file.name);
+      setIsUploading(false);
+
+      // ---- Step 3: Call extractMtr backend function ----
+      setIsExtracting(true);
+
+      // --- SDK approach (uncomment if import works) ---
+      // const result = await extractMtr({ fileUrl, fileName: file.name });
+
+      // --- Fetch approach ---
+      const extractResponse = await fetch(EXTRACT_MTR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl, fileName: file.name }),
+      });
+      if (!extractResponse.ok) {
+        const errorText = await extractResponse.text();
+        throw new Error(`Extraction failed: ${errorText}`);
+      }
+      const result = await extractResponse.json();
+
+      setExtractedData(result);
+      setIsExtracting(false);
+    } catch (err) {
+      console.error('MTR processing error:', err);
+      setUploadError(err.message || 'An error occurred during processing');
+      setIsUploading(false);
+      setIsExtracting(false);
+    }
+  }, []);
+
+  // ---- Drag and drop handlers ----
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleInputChange = (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleBrowseClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // ---- Step 4: Save extracted data to MtrRecord entity ----
+  const handleSaveRecord = async () => {
+    if (!extractedData) return;
+    setSaveStatus('saving');
+
+    try {
+      const recordData = {
+        fileName: uploadedFileName,
+        fileUrl: uploadedFileUrl,
+        heatNumber: extractedData.heatNumber || '',
+        heatNumber2: extractedData.heatNumber2 || '',
+        specification: extractedData.specification || '',
+        grade: extractedData.grade || '',
+        type: extractedData.type || '',
+        materialType: extractedData.materialType || '',
+        countryOfOrigin: extractedData.countryOfOrigin || '',
+        poNumber: extractedData.poNumber || '',
+        quantity: extractedData.quantity || '',
+        notes: extractedData.notes || '',
+        rawText: extractedData.rawText || '',
+        extractedData: extractedData.extractedData || {},
+        extractionStatus: 'complete',
+        approvalStatus: 'pending',
+        uploadedDate: new Date().toISOString().split('T')[0],
+      };
+
+      await MtrRecord.create(recordData);
+      setSaveStatus('saved');
+    } catch (err) {
+      console.error('Save error:', err);
+      setSaveStatus('error');
+      setUploadError(`Failed to save record: ${err.message}`);
+    }
+  };
+
+  // ---- Reset for next upload ----
+  const handleReset = () => {
+    setExtractedData(null);
+    setUploadedFileUrl(null);
+    setUploadedFileName(null);
+    setUploadError(null);
+    setSaveStatus(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  return (
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+
+      {/* ---- Upload Zone ---- */}
+      <h2 style={{ fontSize: '22px', fontWeight: 600, color: '#1f2937', marginBottom: '4px' }}>
+        Upload Mill Test Report
+      </h2>
+      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '24px' }}>
+        Upload a PDF or image to begin the 3-step review process
+      </p>
+
+      {/* Hidden file input — THIS IS THE KEY ELEMENT THE BUILDER WAS MISSING */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg"
+        onChange={handleInputChange}
+        style={{ display: 'none' }}
+      />
+
+      {/* Drop zone */}
+      <div
+        onClick={handleBrowseClick}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          border: `2px dashed ${isDragging ? '#1c3a5e' : '#d1d5db'}`,
+          borderRadius: '8px',
+          padding: '48px 24px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          backgroundColor: isDragging ? '#f0f4f8' : '#ffffff',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        {isUploading ? (
+          <div>
+            <p style={{ fontSize: '16px', color: '#1f2937', fontWeight: 500 }}>
+              Uploading file...
+            </p>
+          </div>
+        ) : isExtracting ? (
+          <div>
+            <div style={{
+              width: '40px', height: '40px',
+              border: '4px solid #e5e7eb',
+              borderTopColor: '#1c3a5e',
+              borderRadius: '50%',
+              margin: '0 auto 12px',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <p style={{ fontSize: '16px', color: '#1f2937', fontWeight: 500 }}>
+              Extracting data from MTR...
+            </p>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+              Using AWS Textract + GPT-4o vision
+            </p>
+          </div>
+        ) : (
+          <div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+              style={{ margin: '0 auto 12px' }}>
+              <path d="M12 16V4M12 4l-4 4M12 4l4 4" stroke="#6b7280"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                stroke="#6b7280" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <p style={{ fontSize: '16px', color: '#1f2937', fontWeight: 500 }}>
+              Drop MTR file here or click to browse
+            </p>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+              PDF, PNG, or JPG — max 25MB
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Error message */}
+      {uploadError && (
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 16px',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fecaca',
+          borderRadius: '6px',
+          color: '#dc2626',
+          fontSize: '14px',
+        }}>
+          ⚠️ {uploadError}
+        </div>
+      )}
+
+      {/* ---- Extracted Data Review Form ---- */}
+      {extractedData && (
+        <div style={{ marginTop: '32px' }}>
+          <h3 style={{
+            fontSize: '18px', fontWeight: 600, color: '#1f2937',
+            marginBottom: '16px', paddingBottom: '8px',
+            borderBottom: '1px solid #e5e7eb',
+          }}>
+            Extracted Data — Review & Edit
+          </h3>
+
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr',
+            gap: '16px', marginBottom: '24px',
+          }}>
+            <FormField label="Heat Number" value={extractedData.heatNumber}
+              onChange={(v) => setExtractedData({ ...extractedData, heatNumber: v })} />
+            <FormField label="Heat Number 2" value={extractedData.heatNumber2}
+              onChange={(v) => setExtractedData({ ...extractedData, heatNumber2: v })} />
+            <FormField label="Specification" value={extractedData.specification}
+              onChange={(v) => setExtractedData({ ...extractedData, specification: v })} />
+            <FormField label="Grade" value={extractedData.grade}
+              onChange={(v) => setExtractedData({ ...extractedData, grade: v })} />
+            <FormField label="Type / Size" value={extractedData.type}
+              onChange={(v) => setExtractedData({ ...extractedData, type: v })} />
+            <FormField label="Material Type" value={extractedData.materialType}
+              onChange={(v) => setExtractedData({ ...extractedData, materialType: v })} />
+            <FormField label="Country of Origin" value={extractedData.countryOfOrigin}
+              onChange={(v) => setExtractedData({ ...extractedData, countryOfOrigin: v })} />
+            <FormField label="PO Number" value={extractedData.poNumber}
+              onChange={(v) => setExtractedData({ ...extractedData, poNumber: v })} />
+            <FormField label="Quantity" value={extractedData.quantity}
+              onChange={(v) => setExtractedData({ ...extractedData, quantity: v })} />
+          </div>
+
+          {/* Notes */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'block', fontSize: '13px', fontWeight: 500,
+              color: '#374151', marginBottom: '4px',
+            }}>
+              Notes
+            </label>
+            <textarea
+              value={extractedData.notes || ''}
+              onChange={(e) => setExtractedData({ ...extractedData, notes: e.target.value })}
+              style={{
+                width: '100%', minHeight: '60px',
+                padding: '8px 12px',
+                border: '1px solid #d1d5db', borderRadius: '6px',
+                fontSize: '14px', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+
+          {/* Save button */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleSaveRecord}
+              disabled={saveStatus === 'saving'}
+              style={{
+                padding: '10px 24px',
+                backgroundColor: saveStatus === 'saved' ? '#16a34a' : '#1c3a5e',
+                color: '#ffffff',
+                border: 'none', borderRadius: '6px',
+                fontSize: '14px', fontWeight: 500,
+                cursor: saveStatus === 'saving' ? 'wait' : 'pointer',
+              }}
+            >
+              {saveStatus === 'saving' ? 'Saving...' :
+               saveStatus === 'saved' ? '✓ Record Saved' :
+               'Save Record'}
+            </button>
+
+            <button
+              onClick={handleReset}
+              style={{
+                padding: '10px 24px',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                border: '1px solid #d1d5db', borderRadius: '6px',
+                fontSize: '14px', fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Upload Another
+            </button>
+          </div>
+
+          {saveStatus === 'error' && (
+            <p style={{ color: '#dc2626', fontSize: '14px', marginTop: '8px' }}>
+              Failed to save. Check console for details.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Spinner animation */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
+// Reusable form field component
+// ============================================================
+function FormField({ label, value, onChange }) {
+  return (
+    <div>
+      <label style={{
+        display: 'block', fontSize: '13px', fontWeight: 500,
+        color: '#374151', marginBottom: '4px',
+      }}>
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: '100%', padding: '8px 12px',
+          border: '1px solid #d1d5db', borderRadius: '6px',
+          fontSize: '14px', fontFamily: 'inherit',
+        }}
+      />
+    </div>
+  );
+}
