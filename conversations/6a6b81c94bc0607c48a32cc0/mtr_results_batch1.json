@@ -1,0 +1,752 @@
+[
+  {
+    "filename": "079711dc3_256824PLATE2X96X240A588PO-1848293.pdf",
+    "blocks": 895,
+    "lines": 193,
+    "tables": 3,
+    "extractedData": {
+      "heatNumbers": [
+        "256824-01"
+      ],
+      "specifications": [
+        "ASTM A588",
+        "A709-50W"
+      ],
+      "grade": "Grade 50W",
+      "sizes": [
+        "2.0000 IN x 96.000 IN x 240.000 IN"
+      ],
+      "materialType": "plate",
+      "countryOfOrigin": "USA",
+      "poNumber": "184293",
+      "quantity": "1",
+      "chemistryByHeat": {
+        "256824-01": {
+          "C": 0.18,
+          "Mn": 1.12,
+          "P": 0.012,
+          "S": 0.002,
+          "Si": 0.34,
+          "Cu": 0.3,
+          "Ni": 0.22,
+          "Cr": 0.46,
+          "Mo": 0.024,
+          "Nb": 0.006,
+          "V": 0.059,
+          "Ti": 0.031,
+          "N": 0.002,
+          "B": 0.011,
+          "Ca": 0.0006,
+          "Sn": 0.002,
+          "CEV": 6.39
+        }
+      },
+      "mechanicalProperties": {
+        "256824-01": {
+          "Yield": 59.5,
+          "Tensile": 86.1,
+          "Elongation": 28.2
+        }
+      },
+      "notes": "Mercury has not come in contact with this product during the manufacturing process nor has any mercury been used by the manufacturing process. Certified in accordance with EN 10204 3.1. No weld repair has been performed on this material. Yield strength is determined by the 0.2% offset method unless otherwise noted. Fully Killed, Fine Grain Manufactured to a fully killed fine grain practice.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "16c9b99af_E2069HSS4SQX25A847WITHCVNPO-1868687.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "1e6c6496c_AllCerts_5123460_Merged.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "2a5e1d73e_1096119C8X1875A36PO-1723925.pdf",
+    "blocks": 738,
+    "lines": 114,
+    "tables": 1,
+    "extractedData": {
+      "heatNumbers": [
+        "1096119"
+      ],
+      "specifications": [
+        "ASTM A36-19",
+        "A572-21e1",
+        "A709 GR. 36",
+        "ASME SA36-08 ADDEND A",
+        "M270 GR. 36",
+        "M270 GR. 50 TYP 1",
+        "A709 GR. 50 TYP 1",
+        "A529-50",
+        "A992",
+        "CSA G40.21 GRADE CAN 44W",
+        "CAN 50W"
+      ],
+      "grade": "Gr50 Tp1",
+      "sizes": [
+        "CHANNEL 'x18.75# 40'0\""
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "DEN-26687",
+      "quantity": "28",
+      "chemistryByHeat": {
+        "1096119": {
+          "C": "0.11%",
+          "Mn": "0.85%",
+          "P": "0.011%",
+          "S": "0.024%",
+          "Si": "0.17%",
+          "Cu": "0.30%",
+          "Cr": "0.11%",
+          "Ni": "0.12%",
+          "Mo": "0.034%",
+          "V": "0.005%",
+          "Cb": "0.008%",
+          "Sn": "0.010%",
+          "B": "0.0003%",
+          "Ti": "0.001%",
+          "N": "0.0095%",
+          "CE": "0.31%"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield Strength test 1": "51.1ksi",
+        "Tensile Strength test 1": "70.4ksi",
+        "Elongation test 1": "24%",
+        "Yield Strength test 2": "50.1ksi",
+        "Tensile Strength test 2": "70.3ksi",
+        "Elongation test 2": "23%"
+      },
+      "notes": "*Material is fully killed and is Hot Rolled Steel. *100% melted, rolled, and manufactured in the USA. *EN10204:2004 3.1 compliant. *Contains no weld repair. *Contains no Mercury contamination. *Manufactured in accordance with the latest version of the plant quality manual. *Meets the \"Buy America\" requirements of 23 CFR635.410, 49 CFR 661.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "41b08b62d_243539PLATE375X96X240A588WITHCVNPO-1707213.pdf",
+    "blocks": 838,
+    "lines": 169,
+    "tables": 3,
+    "extractedData": {
+      "heatNumbers": [
+        "243539"
+      ],
+      "specifications": [
+        "ASTM A588",
+        "A709"
+      ],
+      "grade": "Grade 50W",
+      "sizes": [
+        "0.3750 IN X 96.000 IN x 240.000 IN"
+      ],
+      "materialType": "plate",
+      "countryOfOrigin": "USA",
+      "poNumber": "1707213",
+      "quantity": "1",
+      "chemistryByHeat": {
+        "243539": {
+          "C": "0.06",
+          "Mn": "0.92",
+          "P": "0.014",
+          "S": "0.002",
+          "Si": "0.34",
+          "Cu": "0.28",
+          "Ni": "0.26",
+          "Cr": "0.47",
+          "Mo": "0.022",
+          "Nb": "0.003",
+          "V": "0.037",
+          "Al": "0.025",
+          "Ti": "0.002",
+          "N": "0.013",
+          "B": "0.0005",
+          "Ca": "0.0021",
+          "CE": "6.43"
+        }
+      },
+      "mechanicalProperties": {
+        "243539": {
+          "Yield": "66.9 ksi",
+          "Tensile": "77.5 ksi",
+          "Elongation": "32.2%",
+          "CVN": {
+            "Temperature": "-22 F",
+            "Values": [
+              229,
+              223,
+              230,
+              240,
+              219,
+              237,
+              207,
+              219,
+              214
+            ]
+          }
+        }
+      },
+      "notes": "Certified in accordance with EN 10204 3.1. No weld repair has been performed on this material.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "4f7d23987_32524850SHEET11GAA606PO-1902285.pdf",
+    "blocks": 616,
+    "lines": 116,
+    "tables": 5,
+    "extractedData": {
+      "heatNumbers": [
+        "32524850"
+      ],
+      "specifications": [
+        "ASTM A606 TYPE 4-23"
+      ],
+      "grade": "",
+      "sizes": [],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "37567 - 1",
+      "quantity": "",
+      "chemistryByHeat": {
+        "32524850": {
+          "C": 0.05,
+          "Mn": 0.87,
+          "P": 0.012,
+          "S": 0.002,
+          "Si": 0.43,
+          "Cu": 0.33,
+          "Ni": 0.14,
+          "Cr": 0.45,
+          "Mo": 0.02,
+          "V": 0.039,
+          "Nb": 0.003,
+          "Ti": 0.002,
+          "B": 0.0003
+        }
+      },
+      "mechanicalProperties": {
+        "Yield Strength": "66.8 KSI",
+        "Tensile Strength": "76.0 KSI",
+        "Total Elongation": "32%"
+      },
+      "notes": "For Conversion to ASTM A588 A&B and A242",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "5a14de80d_600784W30X90A588WITHCVNPO-1811328.pdf",
+    "blocks": 1153,
+    "lines": 281,
+    "tables": 2,
+    "extractedData": {
+      "heatNumbers": [
+        "600784",
+        "616184",
+        "619185",
+        "619186"
+      ],
+      "specifications": [
+        "ASTM A588/A588M-19",
+        "ASTM A709/A709M-21"
+      ],
+      "grade": "Grade B",
+      "sizes": [
+        "W30X090.0",
+        "W760X134"
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "1811328",
+      "quantity": "6",
+      "chemistryByHeat": {
+        "600784": {
+          "C": 0.07,
+          "Mn": 1.26,
+          "P": 0.018,
+          "S": 0.025,
+          "Si": 0.26,
+          "Cu": 0.27,
+          "Ni": 0.26,
+          "Cr": 0.53,
+          "Mo": 0.03,
+          "V": 0.04,
+          "Nb": 0.001,
+          "CE": 0.44,
+          "Pcm": 0.19
+        },
+        "616184": {
+          "C": 0.07,
+          "Mn": 1.3,
+          "P": 0.013,
+          "S": 0.019,
+          "Si": 0.26,
+          "Cu": 0.28,
+          "Ni": 0.34,
+          "Cr": 0.46,
+          "Mo": 0.04,
+          "V": 0.04,
+          "Nb": 0.001,
+          "CE": 0.43,
+          "Pcm": 0.19
+        },
+        "619185": {
+          "C": 0.07,
+          "Mn": 1.26,
+          "P": 0.011,
+          "S": 0.015,
+          "Si": 0.3,
+          "Cu": 0.29,
+          "Ni": 0.3,
+          "Cr": 0.42,
+          "Mo": 0.04,
+          "V": 0.04,
+          "Nb": 0.003,
+          "CE": 0.42,
+          "Pcm": 0.19
+        },
+        "619186": {
+          "C": 0.07,
+          "Mn": 1.26,
+          "P": 0.012,
+          "S": 0.013,
+          "Si": 0.26,
+          "Cu": 0.29,
+          "Ni": 0.32,
+          "Cr": 0.42,
+          "Mo": 0.05,
+          "V": 0.04,
+          "Nb": 0.001,
+          "CE": 0.43,
+          "Pcm": 0.19
+        }
+      },
+      "mechanicalProperties": {
+        "600784": {
+          "Yield": "61 KSI",
+          "Tensile": "79 KSI",
+          "Elongation": "24%"
+        },
+        "616184": {
+          "Yield": "58 KSI",
+          "Tensile": "78 KSI",
+          "Elongation": "24%"
+        },
+        "619185": {
+          "Yield": "60 KSI",
+          "Tensile": "76 KSI",
+          "Elongation": "25%"
+        },
+        "619186": {
+          "Yield": "58 KSI",
+          "Tensile": "80 KSI",
+          "Elongation": "24%"
+        }
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "6505f31c1_1201073776L3X2X375A36PO-1940826.pdf",
+    "blocks": 770,
+    "lines": 117,
+    "tables": 3,
+    "extractedData": {
+      "heatNumbers": [
+        "1201073776"
+      ],
+      "specifications": [
+        "ASTM A529",
+        "ASTM A992"
+      ],
+      "grade": "Nucor Multigrade",
+      "sizes": [
+        "3\" x 2\" x 0.375\""
+      ],
+      "materialType": "angle",
+      "countryOfOrigin": "United States",
+      "poNumber": "DEN-28188",
+      "quantity": "4298 lbs, 35 EA",
+      "chemistryByHeat": {
+        "1201073776": {
+          "C": "0.18",
+          "Mn": "0.74",
+          "P": "0.019",
+          "S": "0.047",
+          "Si": "0.21",
+          "Cu": "0.29",
+          "Ni": "0.08",
+          "Cr": "0.20",
+          "V": "0.024",
+          "Mo": "0.03",
+          "Nb": "0.004",
+          "Sn": "0.012",
+          "CE": "0.42"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield (PSI)": [
+          "54800",
+          "55800"
+        ],
+        "Tensile (PSI)": [
+          "75900",
+          "76300"
+        ],
+        "Elongation (%)": [
+          "27.0",
+          "24.0"
+        ]
+      },
+      "notes": "Nucor Multigrade includes: ASTM A36-19, ASTM A529-19 Grade 50, ASTM A572-25 Grade 50, CSA G40.21-13(R2023) 44W(300W)/50W(350W), ASTM A709-24 Grade 36/Grade 50, AASHTO M270-23 Grade 36/Grade 50 & ASME SA36-25",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "7fd99491e_20260805114203367.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "8beb3e764_PO-1953368858674-010-015DMAC.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "9c8b6f134_PO-1912615875X5HAS3.pdf",
+    "blocks": 601,
+    "lines": 115,
+    "tables": 4,
+    "extractedData": {
+      "heatNumbers": [
+        "20930030"
+      ],
+      "specifications": [
+        "ASTM A108-18",
+        "ASTM A1044/A1044M-22a"
+      ],
+      "grade": "C1015",
+      "sizes": [
+        "SC 7/8 X 5-3/16 HEADED WELD STUD B/W"
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "1912615",
+      "quantity": "1",
+      "chemistryByHeat": {
+        "20930030": {
+          "C": "0.150%",
+          "Mn": "0.530%",
+          "P": "0.011%",
+          "S": "0.005%",
+          "Si": "0.240%",
+          "Cu": "0.080%",
+          "Ni": "0.040%",
+          "Cr": "0.090%",
+          "Mo": "0.020%",
+          "Al": "0.028%",
+          "B": "0.0002%",
+          "CE": "0.27%"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield": "54,382 PSI",
+        "Tensile": "66,786 PSI",
+        "Elongation": "39.1%",
+        "CVN": ""
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "a26593233_PO-1856403BEARINGS.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "a7d1dca58_822K36240HSS10SQX375A500PO-1755673.pdf",
+    "blocks": 910,
+    "lines": 193,
+    "tables": 11,
+    "extractedData": {
+      "heatNumbers": [
+        "822K36240",
+        "24091442"
+      ],
+      "specifications": [
+        "ASTM A500-23"
+      ],
+      "grade": "Grade B&C",
+      "sizes": [
+        "10.0x10.0x375x40'0\"0(2x2)",
+        "16.0x12.0x3536'0'0(x1)CTM"
+      ],
+      "materialType": "Steel Tube",
+      "countryOfOrigin": "USA",
+      "poNumber": "DEN-27239, DEN-27274",
+      "quantity": "",
+      "chemistryByHeat": {
+        "822K36240": {
+          "C": 0.22,
+          "Mn": 0.89,
+          "P": 0.011,
+          "S": 0.004,
+          "Si": 0.008,
+          "Cu": 0.018,
+          "Ni": 0.01,
+          "Cr": 0.04,
+          "V": 0.001,
+          "Mo": 0.005,
+          "Nb": 0.005,
+          "Ti": 0.002,
+          "B": 0.0002,
+          "N": 0.003,
+          "Ca": 0.0002,
+          "CE": 0.38
+        },
+        "24091442": {
+          "C": 0.2,
+          "Mn": 0.82,
+          "P": 0.011,
+          "S": 0.004,
+          "Si": 0.03,
+          "Cu": 0.1,
+          "Ni": 0.04,
+          "Cr": 0.05,
+          "V": 0.003,
+          "Mo": 0.009,
+          "Nb": 0.002,
+          "Ti": 0.001,
+          "B": 0.0001,
+          "N": 0.0082,
+          "Ca": 0.0021,
+          "CE": 0.36
+        }
+      },
+      "mechanicalProperties": {
+        "822K36240": {
+          "Yield": "63881 Psi",
+          "Tensile": "78655 Psi",
+          "Elongation": "30%"
+        },
+        "24091442": {
+          "Yield": "57590 Psi",
+          "Tensile": "79220 Psi",
+          "Elongation": "31.8%"
+        }
+      },
+      "notes": "The results reported on this report represent the actual attributes of the material furnished and indicate full compliance with all applicable specification and contract requirements. CE calculated using the AWS D1.1 method. Steel is purchased fully killed with a fine grain practice. This document is in compliance with the requirements of EN10204 type3.1. Any tubular steel product noted as \"Made in USA\" and \"Melted and Poured in USA\" meets the Build America, Buy America Act. Method of manufacture is ERW.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "ba7772e4b_1105013FLAT25X8A588PO-1930914.pdf",
+    "blocks": 713,
+    "lines": 101,
+    "tables": 1,
+    "extractedData": {
+      "heatNumbers": [
+        "1105013"
+      ],
+      "specifications": [
+        "ASTM A588",
+        "ASTM A709",
+        "A572",
+        "AASHTO M270"
+      ],
+      "grade": "Grade A",
+      "sizes": [
+        "FLAT 1/4x8 20'0\""
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "1930914",
+      "quantity": "80",
+      "chemistryByHeat": {
+        "1105013": {
+          "C": "0.10%",
+          "Mn": "0.93%",
+          "P": "0.010%",
+          "S": "0.021%",
+          "Si": "0.33%",
+          "Cu": "0.32%",
+          "Ni": "0.13%",
+          "Cr": "0.45%",
+          "Mo": "0.041%",
+          "V": "0.038%",
+          "Nb": "0.003%",
+          "Sn": "0.010%",
+          "B": "0.0003%",
+          "Ti": "0.001%",
+          "N": "0.0077%",
+          "CE": "0.39%"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield Strength": "54.4ksi",
+        "Tensile Strength": "80.3ksi",
+        "Elongation": "24%"
+      },
+      "notes": "Material is fully killed and is Hot Rolled Steel. 100% melted, rolled, and manufactured in the USA. EN10204:2004 3.1 compliant. Contains no weld repair. Contains no Mercury contamination. Manufactured in accordance with the latest version of the plant quality manual. Meets the 'Buy America' requirements of 23 CFR635.410, 49 CFR 66, and the Build America, Buy America Act of 2021.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "bff394cd2_1953368231593CERT.pdf",
+    "error": "An error occurred (UnsupportedDocumentException) when calling the AnalyzeDocument operation: Request has unsupported document format"
+  },
+  {
+    "filename": "e7322f56c_496386W18X65A588PO-1919770.pdf",
+    "blocks": 759,
+    "lines": 140,
+    "tables": 2,
+    "extractedData": {
+      "heatNumbers": [
+        "496386"
+      ],
+      "specifications": [
+        "ASTM A588/A588M-15",
+        "ASTM A709/A709M-15",
+        "ASTM A5/A6M-14"
+      ],
+      "grade": "Grade B",
+      "sizes": [
+        "W13X065.0",
+        "W460X97"
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "841392",
+      "quantity": "3",
+      "chemistryByHeat": {
+        "496386": {
+          "C": "0.08",
+          "Mn": "1.14",
+          "P": "0.016",
+          "S": "0.027",
+          "Si": "0.28",
+          "Cu": "0.32",
+          "Ni": "0.29",
+          "Cr": "A3",
+          "V": "0.03",
+          "Mo": "04",
+          "Nb": "0.009",
+          "CE": "0.41",
+          "Sn": "0.01",
+          "Pcm": "0.19"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield": "60 KSi",
+        "Tensile": "79 KSi",
+        "Elongation": "22%"
+      },
+      "notes": "Mercury has not been used in the direct manufacturing of this material.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "ec5f3b53b_1202076794C10X153A572.pdf",
+    "blocks": 757,
+    "lines": 113,
+    "tables": 3,
+    "extractedData": {
+      "heatNumbers": [
+        "1202076794"
+      ],
+      "specifications": [
+        "ASTM A529",
+        "ASTM A992"
+      ],
+      "grade": "Nucor Multigrade",
+      "sizes": [
+        "10\" X 15.3#"
+      ],
+      "materialType": "Structural Channel",
+      "countryOfOrigin": "United States",
+      "poNumber": "DEN-28514",
+      "quantity": "22032 lbs, 36 EA",
+      "chemistryByHeat": {
+        "1202076794": {
+          "C": "0.13",
+          "Mn": "0.89",
+          "P": "0.018",
+          "S": "0.030",
+          "Si": "0.27",
+          "Cu": "0.29",
+          "Ni": "0.09",
+          "Cr": "0.20",
+          "V": "0.023",
+          "Mo": "0.02",
+          "Nb": "0.004",
+          "Sn": "0.009",
+          "CE": "0.40"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield (PSI)": [
+          "57100",
+          "59800"
+        ],
+        "Tensile (PSI)": [
+          "75100",
+          "76500"
+        ],
+        "Elongation (%)": [
+          "25.0",
+          "27.0"
+        ]
+      },
+      "notes": "Nucor Multigrade includes: ASTM A36-19, ASTM A529-19 Grade 50, ASTM A572-25 Grade 50, CSA G40.21-13(R2023) 44W(300W)/50W(350W), ASTM A709-24 Grade 36/Grade 50, AASHTO M270-23 Grade 36/Grade 50 & ASME SA36-25",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "ed52b1343_1097247L4X3X25A588WITHCVNPO-1718311.pdf",
+    "blocks": 814,
+    "lines": 122,
+    "tables": 1,
+    "extractedData": {
+      "heatNumbers": [
+        "1097247"
+      ],
+      "specifications": [
+        "ASTM A709-21"
+      ],
+      "grade": "Grade 50W",
+      "sizes": [
+        "ANG 4 X 3x1/4 40'0\""
+      ],
+      "materialType": "",
+      "countryOfOrigin": "USA",
+      "poNumber": "1718311",
+      "quantity": "5",
+      "chemistryByHeat": {
+        "1097247": {
+          "C": "0.11%",
+          "Mn": "0.88%",
+          "P": "0.011%",
+          "S": "0.022%",
+          "Si": "0.33%",
+          "Cu": "0.33%",
+          "Cr": "0.43%",
+          "Ni": "0.11%",
+          "Mo": "0.033%",
+          "V": "0.037%",
+          "Cb": "0.002%",
+          "Sn": "0.017%",
+          "B": "0.0002%",
+          "Ti": "0.001%",
+          "N": "0.0083%",
+          "CE": "0.39%"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield Strength": "62.5ksi",
+        "Tensile Strength": "79.7ksi",
+        "Elongation": "22%",
+        "CVN": "99FPF"
+      },
+      "notes": "Material is fully killed and is Hot Rolled Steel. 100% melted, rolled, and manufactured in the USA. Meets the 'Buy America' requirements of 23 CFR635.410. 49 CFR 661.",
+      "extractionConfidence": "high"
+    }
+  }
+]

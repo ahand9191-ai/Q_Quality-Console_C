@@ -1,0 +1,420 @@
+[
+  {
+    "filename": "16c9b99af_E2069HSS4SQX25A847WITHCVNPO-1868687.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "E2069"
+      ],
+      "specifications": [
+        "A847"
+      ],
+      "grade": "",
+      "sizes": [
+        "4\" SQ X 0.250 HR X 40'"
+      ],
+      "materialType": "tube",
+      "countryOfOrigin": "USA",
+      "poNumber": "1868687",
+      "quantity": "",
+      "chemistryByHeat": {
+        "E2069": {
+          "C": 0.06,
+          "Mn": 0.93,
+          "P": 0.014,
+          "S": 0.002,
+          "Si": 0.35,
+          "Cu": 0.36,
+          "Al": 0.031,
+          "V": 0.033,
+          "Ni": 0.05,
+          "Nb": 0.006,
+          "Cr": 0.4,
+          "Ti": 0.002,
+          "Mo": 0.02,
+          "B": 0.0002,
+          "CE": 0.385,
+          "N": 0.007,
+          "Ca": 0.0034,
+          "Sn": 0.04
+        }
+      },
+      "mechanicalProperties": {
+        "Yield": "57630 psi",
+        "Tensile": "76550 psi",
+        "Elongation": "30%",
+        "CVN": {
+          "Temperature": "40 F",
+          "Avg Result": "45 Ft/LBs",
+          "Min Result": "41 Ft/LBs"
+        }
+      },
+      "notes": "This welded steel tubing is manufactured in the United States of America and has been produced in accordance with the stated specification.",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "1e6c6496c_AllCerts_5123460_Merged.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "21003830",
+        "20942980",
+        "10959790"
+      ],
+      "specifications": [
+        "ASTM A108-18",
+        "ASTM A1044/A1044M-22a",
+        "ASTM A29-23"
+      ],
+      "grade": "C1015",
+      "sizes": [
+        "SC 7/8 X 5-3/16",
+        "TT 3/4-10 X 2-1/4"
+      ],
+      "materialType": "weld stud",
+      "countryOfOrigin": "USA",
+      "poNumber": "1948403",
+      "quantity": "480",
+      "chemistryByHeat": {
+        "21003830": {
+          "C": "0.170%",
+          "Mn": "0.540%",
+          "P": "0.006%",
+          "S": "0.002%",
+          "Si": "0.200%",
+          "Cu": "0.070%",
+          "Ni": "0.040%",
+          "Cr": "0.100%",
+          "Mo": "0.020%",
+          "Al": "0.024%",
+          "B": "0.0001%",
+          "CEV": "0.29%"
+        },
+        "20942980": {
+          "C": "0.170%",
+          "Mn": "0.530%",
+          "P": "0.007%",
+          "S": "0.002%",
+          "Si": "0.240%",
+          "Cu": "0.080%",
+          "Ni": "0.040%",
+          "Cr": "0.080%",
+          "Mo": "0.020%",
+          "Al": "0.026%",
+          "B": "0.0002%",
+          "CEV": "0.29%"
+        },
+        "10959790": {
+          "C": "0.090%",
+          "Mn": "0.380%",
+          "P": "0.006%",
+          "S": "0.014%",
+          "Si": "0.180%",
+          "Cu": "0.080%",
+          "Ni": "0.040%",
+          "Cr": "0.060%",
+          "Mo": "0.020%",
+          "Al": "0.023%",
+          "CEV": "0.18%"
+        }
+      },
+      "mechanicalProperties": {
+        "21003830": {
+          "Ultimate": "69,641 PSI",
+          "Yield": "54,491 PSI",
+          "Elongation": "34.4%",
+          "Reduction of Area": "65.1%"
+        },
+        "20942980": {
+          "Ultimate": "71,503 PSI",
+          "Yield": "55,696 PSI",
+          "Elongation": "34.4%",
+          "Reduction of Area": "62.3%"
+        },
+        "10959790": {
+          "Ultimate": "74,195 PSI",
+          "Yield": "70,179 PSI",
+          "Elongation": "23.4%",
+          "Reduction of Area": "65.3%"
+        }
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "7fd99491e_20260805114203367.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "102627779",
+        "627779",
+        "627781"
+      ],
+      "specifications": [
+        "ASTM A588",
+        "ASTM A709/A709M-21"
+      ],
+      "grade": "Grade B",
+      "sizes": [
+        "W24X76"
+      ],
+      "materialType": "beam",
+      "countryOfOrigin": "USA",
+      "poNumber": "1867667",
+      "quantity": "15",
+      "chemistryByHeat": {
+        "627779": {
+          "C": "0.09",
+          "Mn": "1.25",
+          "P": "0.017",
+          "S": "0.015",
+          "Si": "0.76",
+          "Cu": "0.27",
+          "Ni": "0.28",
+          "Cr": "0.31",
+          "Mo": "0.04",
+          "V": "0.04",
+          "Nb": "0.002",
+          "CE": "0.44"
+        },
+        "627781": {
+          "C": "0.07",
+          "Mn": "1.30",
+          "P": "0.013",
+          "S": "0.012",
+          "Si": "0.66",
+          "Cu": "0.27",
+          "Ni": "0.29",
+          "Cr": "0.33",
+          "Mo": "0.05",
+          "V": "0.05",
+          "Nb": "0.003",
+          "CE": "0.44"
+        }
+      },
+      "mechanicalProperties": {
+        "627779": {
+          "Yield": "60 KSI",
+          "Tensile": "79 KSI",
+          "Elongation": "23%",
+          "CVN": "40 ft-lbf at 40\u00b0F"
+        },
+        "627781": {
+          "Yield": "61 KSI",
+          "Tensile": "81 KSI",
+          "Elongation": "22%",
+          "CVN": "40 ft-lbf at 40\u00b0F"
+        }
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "8beb3e764_PO-1953368858674-010-015DMAC.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "NR1338",
+        "AC0056"
+      ],
+      "specifications": [
+        "ASTM A653"
+      ],
+      "grade": "SS Grade 80 Class 3, SS Grade 50 Class 1",
+      "sizes": [
+        "0.0312 in MIN X 58.8750 in MIN",
+        "Min 0.1020 (In.) X 52.13 (In.) X Coil"
+      ],
+      "materialType": "coil",
+      "countryOfOrigin": "USA",
+      "poNumber": "0008363, 0008429",
+      "quantity": "45,420 lbs",
+      "chemistryByHeat": {
+        "NR1338": {
+          "C": "0.05",
+          "Mn": "0.19",
+          "P": "0.008",
+          "S": "0.001",
+          "Si": "0.025",
+          "Cu": "0.10",
+          "Sn": "0.002",
+          "Ni": "0.03",
+          "Cr": "0.05",
+          "Mo": "0.01",
+          "Al": "0.028",
+          "N": "0.0051",
+          "V": "0.002",
+          "Nb": "0.002",
+          "Ti": "0.000",
+          "B": "0.0001",
+          "Ca": "0.0014"
+        },
+        "AC0056": {
+          "C": "0.19",
+          "Mn": "0.48",
+          "P": "0.010",
+          "S": "0.002",
+          "Si": "0.02",
+          "Cu": "0.11",
+          "Ni": "0.03",
+          "Cr": "0.05",
+          "Mo": "0.01",
+          "Al": "0.029",
+          "Ca": "0.0015",
+          "Nb": "0.000",
+          "V": "0.002",
+          "B": "0.0001",
+          "Ti": "0.001",
+          "N": "0.0080",
+          "Sn": "0.004"
+        }
+      },
+      "mechanicalProperties": {
+        "NR1338": {
+          "Yield Strength": "97.8 ksi / 674 MPa",
+          "Tensile Strength": "99.8 ksi / 688 MPa",
+          "Elongation": "11.4 %"
+        },
+        "AC0056": {
+          "Yield Strength": "61.3 ksi / 423 MPa",
+          "Tensile Strength": "78.7 ksi / 543 MPa",
+          "Elongation": "23 %"
+        }
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "a26593233_PO-1856403BEARINGS.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "42144830"
+      ],
+      "specifications": [
+        "ASTM A 606 TYPE 4- 18"
+      ],
+      "grade": "",
+      "sizes": [],
+      "materialType": "Prime Hot Rolled Band",
+      "countryOfOrigin": "USA",
+      "poNumber": "32770 - 3",
+      "quantity": "",
+      "chemistryByHeat": {
+        "42144830": {
+          "C": "0.05",
+          "Mn": "0.84",
+          "P": "0.016",
+          "S": "0.004",
+          "Si": "0.41",
+          "Cu": "0.32",
+          "Ni": "0.19",
+          "Cr": "0.44",
+          "Mo": "0.02",
+          "V": "0.038",
+          "Nb": "0.002"
+        }
+      },
+      "mechanicalProperties": {
+        "Yield Strength": "67.3 KSI",
+        "Tensile Strength": "77.5 KSI",
+        "Percent Elongation": "28%"
+      },
+      "notes": "For conversion to ASTM A588 A&B and A242",
+      "extractionConfidence": "high"
+    }
+  },
+  {
+    "filename": "bff394cd2_1953368231593CERT.pdf",
+    "blocks": 0,
+    "lines": 0,
+    "tables": 0,
+    "extractedData": {
+      "heatNumbers": [
+        "NR1338",
+        "AC0056"
+      ],
+      "specifications": [
+        "ASTM A653 SS Grade 80 Class 3",
+        "ASTM A653 SS Grade 50 Class 1"
+      ],
+      "grade": "",
+      "sizes": [
+        "0.0312 in MIN X 58.8750 in MIN",
+        "Min 0.1020 (In.) X 52.13 (In.) X Coil"
+      ],
+      "materialType": "coil",
+      "countryOfOrigin": "USA",
+      "poNumber": "0008363",
+      "quantity": "",
+      "chemistryByHeat": {
+        "NR1338": {
+          "C": 0.05,
+          "Mn": 0.19,
+          "P": 0.008,
+          "S": 0.001,
+          "Si": 0.025,
+          "Cu": 0.1,
+          "Sn": 0.002,
+          "Ni": 0.03,
+          "Cr": 0.05,
+          "Mo": 0.01,
+          "Al": 0.028,
+          "N": 0.0051,
+          "V": 0.002,
+          "Nb": 0.002,
+          "Ti": 0.0,
+          "B": 0.0001,
+          "Ca": 0.0014
+        },
+        "AC0056": {
+          "C": 0.19,
+          "Mn": 0.48,
+          "P": 0.01,
+          "S": 0.002,
+          "Si": 0.02,
+          "Cu": 0.11,
+          "Ni": 0.03,
+          "Cr": 0.05,
+          "Mo": 0.01,
+          "Al": 0.029,
+          "Ca": 0.0015,
+          "Nb": 0.0,
+          "V": 0.002,
+          "B": 0.0001,
+          "Ti": 0.001,
+          "N": 0.008,
+          "Sn": 0.004
+        }
+      },
+      "mechanicalProperties": {
+        "NR1338": {
+          "Yield Strength": "97.8 ksi / 674 MPa",
+          "Tensile Strength": "99.8 ksi / 688 MPa",
+          "Elongation": "11.4 %"
+        },
+        "AC0056": {
+          "Yield Strength": "61.3 ksi / 423 MPa",
+          "Tensile Strength": "78.7 ksi / 543 MPa",
+          "Elongation": "23 %"
+        }
+      },
+      "notes": "",
+      "extractionConfidence": "high"
+    }
+  }
+]
