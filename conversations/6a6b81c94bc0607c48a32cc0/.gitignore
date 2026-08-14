@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Base44 agent config (private)
+.agents/
+incoming_files/
+
+# Environment & secrets
+.env
+.env.local
+*.key
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Large test PDFs (optional — uncomment to exclude)
+# test_sdi_1.pdf
+# test_sdi_0.pdf
