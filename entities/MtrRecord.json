@@ -15,6 +15,12 @@
     "domesticStatus": {
       "type": "string"
     },
+    "extractedData": {
+      "type": "string"
+    },
+    "extractionStatus": {
+      "type": "string"
+    },
     "fileName": {
       "type": "string"
     },
@@ -30,8 +36,16 @@
     "heatNumber2": {
       "type": "string"
     },
+    "killedFineGrainPractice": {
+      "type": "string",
+      "description": "Fully killed fine grain practice statement status: confirmed, not_stated, not_required"
+    },
     "materialType": {
       "type": "string"
+    },
+    "noWeldRepair": {
+      "type": "string",
+      "description": "No weld repair statement status: confirmed, not_stated, not_required"
     },
     "notes": {
       "type": "string"
@@ -46,12 +60,6 @@
       "type": "string"
     },
     "rawText": {
-      "type": "string"
-    },
-    "extractedData": {
-      "type": "string"
-    },
-    "extractionStatus": {
       "type": "string"
     },
     "reviewedBy": {
