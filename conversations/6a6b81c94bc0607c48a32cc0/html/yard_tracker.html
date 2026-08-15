@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Contech Bridge QC Yard Tracker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+  #app {
+    display: flex; width: 100%; height: 100%; background: #1a1a2e;
+  }
+
+  /* ===== SIDEBAR ===== */
+  #sidebar {
+    width: 320px; min-width: 320px; background: #16213e; color: #e0e0e0;
+    display: flex; flex-direction: column; overflow-y: auto;
+    border-right: 2px solid #0f3460;
+  }
+
+  #sidebar-header {
+    padding: 16px; background: linear-gradient(135deg, #0f3460, #1a1a2e);
+    border-bottom: 2px solid #0a2647;
+  }
+
+  #sidebar-header h1 {
+    font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;
+  }
+
+  #sidebar-header .subtitle {
+    font-size: 12px; color: #7a8fa6;
+  }
+
+  .sidebar-section {
+    padding: 14px 16px; border-bottom: 1px solid #1a2744;
+  }
+
+  .sidebar-section h3 {
+    font-size: 13px; font-weight: 600; color: #4a9fd4; text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 10px;
+  }
+
+  /* Toolbox buttons */
+  .toolbox { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .tool-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px; background: #1a2744; border: 1px solid #2a3f5f;
+    border-radius: 6px; color: #c0c8d4; font-size: 12px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tool-btn:hover { background: #0f3460; border-color: #4a9fd4; color: #fff; }
+  .tool-btn.active { background: #0f3460; border-color: #4a9fd4; color: #4a9fd4; }
+
+  .tool-btn .icon {
+    width: 28px; height: 16px; border-radius: 2px; display: inline-block;
+  }
+
+  /* Bridge type buttons */
+  .bridge-types { display: flex; flex-direction: column; gap: 6px; }
+
+  .bridge-type-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: #1a2744; border: 1px solid #2a3f5f;
+    border-radius: 6px; color: #c0c8d4; font-size: 12px; cursor: pointer;
+    transition: all 0.15s; text-align: left;
+  }
+  .bridge-type-btn:hover { background: #0f3460; border-color: #4a9fd4; transform: translateX(2px); }
+
+  .bridge-type-btn .bridge-icon-mini {
+    width: 36px; height: 14px; border-radius: 2px; flex-shrink: 0;
+  }
+
+  /* Info panel */
+  #info-panel {
+    padding: 14px 16px; border-bottom: 1px solid #1a2744;
+    display: none;
+  }
+  #info-panel.visible { display: block; }
+
+  #info-panel h3 {
+    font-size: 13px; font-weight: 600; color: #4a9fd4; text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 10px;
+  }
+
+  .info-row {
+    display: flex; justify-content: space-between; padding: 5px 0;
+    font-size: 12px; border-bottom: 1px solid #1a2744;
+  }
+  .info-row .label { color: #7a8fa6; }
+  .info-row .value { color: #e0e0e0; font-weight: 500; }
+
+  .info-row input, .info-row select, .info-row textarea {
+    width: 100%; background: #0f1c2e; border: 1px solid #2a3f5f; border-radius: 4px;
+    color: #e0e0e0; padding: 4px 8px; font-size: 12px; font-family: inherit;
+  }
+  .info-row input:focus, .info-row select:focus, .info-row textarea:focus {
+    outline: none; border-color: #4a9fd4;
+  }
+
+  .info-edit-row {
+    margin-bottom: 8px;
+  }
+  .info-edit-row label {
+    display: block; font-size: 11px; color: #7a8fa6; margin-bottom: 3px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  .info-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  .info-actions button {
+    padding: 6px 12px; border-radius: 5px; font-size: 12px; cursor: pointer;
+    border: 1px solid; transition: all 0.15s;
+  }
+  .btn-save { background: #0f3460; color: #4a9fd4; border-color: #4a9fd4; }
+  .btn-save:hover { background: #16447a; color: #fff; }
+  .btn-delete { background: #2a1520; color: #e74c3c; border-color: #e74c3c; }
+  .btn-delete:hover { background: #e74c3c; color: #fff; }
+  .btn-close { background: #1a2744; color: #7a8fa6; border-color: #2a3f5f; }
+  .btn-close:hover { background: #2a3f5f; color: #fff; }
+
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .stat-card {
+    padding: 10px; background: #1a2744; border-radius: 6px; text-align: center;
+  }
+  .stat-card .stat-num { font-size: 22px; font-weight: 700; color: #4a9fd4; }
+  .stat-card .stat-label { font-size: 10px; color: #7a8fa6; text-transform: uppercase; margin-top: 2px; }
+
+  /* ===== CANVAS AREA ===== */
+  #canvas-container {
+    flex: 1; position: relative; overflow: hidden; background: #2a2a3a;
+    cursor: grab;
+  }
+  #canvas-container.panning { cursor: grabbing; }
+
+  #yard-canvas {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  /* Yard background */
+  .yard-bg {
+    position: absolute; top: 0; left: 0;
+  }
+
+  /* Roads */
+  .road {
+    position: absolute; background: #3a3a3a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #666; font-weight: 600; letter-spacing: 2px;
+  }
+  .road-hwy85 {
+    left: 0; top: 0; width: 40px; height: 100%;
+    background: linear-gradient(to right, #2a2a2a, #3a3a3a, #2a2a2a);
+    border-right: 2px solid #555;
+  }
+  .road-hwy85::after {
+    content: 'US-85';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    white-space: nowrap; color: #d4a843; font-size: 14px; font-weight: 700;
+    letter-spacing: 3px; text-shadow: 1px 1px 2px #000;
+  }
+  .road-hwy85::before {
+    content: ''; position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
+    background: repeating-linear-gradient(to bottom, #d4a843 0, #d4a843 20px, transparent 20px, transparent 40px);
+    transform: translateX(-50%);
+    z-index: 1;
+  }
+  .road-66 {
+    left: 40px; top: 0; width: calc(100% - 40px); height: 36px;
+    background: linear-gradient(to bottom, #2a2a2a, #3a3a3a, #2a2a2a);
+    border-bottom: 2px solid #555;
+  }
+  .road-66::after {
+    content: 'CR-66';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #d4a843; font-size: 14px; font-weight: 700; letter-spacing: 3px;
+    text-shadow: 1px 1px 2px #000;
+  }
+  .road-66::before {
+    content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px;
+    background: repeating-linear-gradient(to right, #d4a843 0, #d4a843 20px, transparent 20px, transparent 40px);
+    transform: translateY(-50%);
+  }
+
+  /* Railroad tracks */
+  .railroad {
+    position: absolute; left: 44px; top: 36px; width: 8px; height: calc(100% - 72px);
+    background: #4a4030;
+  }
+  .railroad::before {
+    content: ''; position: absolute; top: 0; left: 2px; width: 2px; height: 100%;
+    background: #8a7a5a; box-shadow: 4px 0 0 #8a7a5a;
+  }
+  .railroad::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 15px, #3a3020 15px, #3a3020 20px);
+  }
+
+  /* Yard area */
+  .yard-area {
+    position: absolute; left: 56px; top: 40px;
+    width: calc(100% - 100px); height: calc(100% - 80px);
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(100,110,130,0.06) 79px, rgba(100,110,130,0.06) 80px),
+      repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(100,110,130,0.06) 79px, rgba(100,110,130,0.06) 80px),
+      linear-gradient(135deg, #8b7d6b 0%, #9a8b75 30%, #8b7d6b 70%, #7a6d5a 100%);
+  }
+
+  /* Corn field */
+  .corn-field {
+    position: absolute; right: 0; top: 40px; width: 44px; height: calc(100% - 80px);
+    background:
+      repeating-linear-gradient(45deg, #6b8f3a 0px, #6b8f3a 4px, #5a7a30 4px, #5a7a30 8px),
+      #5a7a30;
+    border-left: 2px solid #4a6a20;
+    opacity: 0.85;
+  }
+
+  /* Storage bay labels */
+  .bay-label {
+    position: absolute; font-size: 9px; color: rgba(200,200,200,0.4);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+    pointer-events: none; white-space: nowrap;
+  }
+
+  /* Steel stock lanes */
+  .steel-lane {
+    position: absolute; background:
+      repeating-linear-gradient(90deg, #555 0px, #555 2px, #444 2px, #444 12px);
+    border-radius: 2px; opacity: 0.7;
+  }
+
+  /* Shop building */
+  .shop-building {
+    position: absolute; bottom: 44px; right: 52px;
+    width: 180px; height: 120px;
+    background: linear-gradient(135deg, #4a5060, #3a3f4a);
+    border: 2px solid #5a6070; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .shop-building::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px;
+    background: linear-gradient(135deg, #1a5c8a, #0d4a7a);
+    border-radius: 4px 4px 0 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .shop-logo {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; font-weight: 800; color: #fff;
+    letter-spacing: 1px; text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    z-index: 2; line-height: 14px; text-align: center; padding-top: 4px;
+  }
+  .shop-logo .sub { font-size: 7px; font-weight: 500; opacity: 0.85; letter-spacing: 0.5px; }
+
+  /* Shop details */
+  .shop-detail {
+    position: absolute; background: #3a3f4a; border: 1px solid #4a5060; border-radius: 2px;
+  }
+
+  /* ===== BRIDGE ASSETS ===== */
+  .bridge-asset {
+    position: absolute; cursor: move; user-select: none;
+    transition: filter 0.15s, transform 0.05s;
+    z-index: 10;
+  }
+  .bridge-asset:hover { filter: brightness(1.2) drop-shadow(0 0 4px rgba(74,159,212,0.6)); }
+  .bridge-asset.selected { filter: brightness(1.3) drop-shadow(0 0 8px rgba(74,159,212,0.8)); }
+  .bridge-asset.dragging { z-index: 100; filter: brightness(1.4); }
+
+  .bridge-visual {
+    position: relative; border-radius: 3px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+
+  /* Bridge type styles */
+  .bridge-girder .bridge-visual {
+    background: linear-gradient(135deg, #4a7ab8, #2a5a98);
+    border: 1px solid #5a8ac8;
+  }
+  .bridge-girder .bridge-visual::after {
+    content: ''; position: absolute; top: 30%; left: 0; right: 0; height: 2px;
+    background: rgba(255,255,255,0.3); box-shadow: 0 6px 0 rgba(255,255,255,0.15);
+  }
+
+  .bridge-pedestrian .bridge-visual {
+    background: linear-gradient(135deg, #2aac8a, #1a8a6a);
+    border: 1px solid #3abc9a;
+  }
+  .bridge-pedestrian .bridge-visual::after {
+    content: ''; position: absolute; top: 20%; left: 10%; right: 10%; height: 60%;
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 2px;
+  }
+
+  .bridge-truss .bridge-visual {
+    background: linear-gradient(135deg, #c85a3a, #a8452a);
+    border: 1px solid #d86a4a;
+  }
+  .bridge-truss .bridge-visual::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.2) 48%, rgba(255,255,255,0.2) 52%, transparent 52%),
+      linear-gradient(-45deg, transparent 48%, rgba(255,255,255,0.2) 48%, rgba(255,255,255,0.2) 52%, transparent 52%);
+    background-size: 20px 20px;
+  }
+
+  .bridge-suspension .bridge-visual {
+    background: linear-gradient(135deg, #8a6abf, #6a4a9f);
+    border: 1px solid #9a7acf;
+  }
+  .bridge-suspension .bridge-visual::after {
+    content: ''; position: absolute; top: -5%; left: 50%; transform: translateX(-50%);
+    width: 60%; height: 110%; border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%; clip-path: inset(0 0 50% 0);
+  }
+
+  .bridge-modular .bridge-visual {
+    background: linear-gradient(135deg, #d4a843, #b48823);
+    border: 1px solid #e4b853;
+  }
+  .bridge-modular .bridge-visual::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(90deg, transparent 0, transparent 19px, rgba(0,0,0,0.2) 19px, rgba(0,0,0,0.2) 20px);
+  }
+
+  .bridge-loose-parts .bridge-visual {
+    background: linear-gradient(135deg, #888, #666);
+    border: 1px solid #999; border-radius: 4px;
+  }
+  .bridge-loose-parts .bridge-visual::after {
+    content: ''; position: absolute; top: 20%; left: 20%; right: 20%; bottom: 20%;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.15) 0, rgba(255,255,255,0.15) 3px, transparent 3px, transparent 6px);
+  }
+
+  /* QC hold tag */
+  .qc-tag {
+    position: absolute; top: -8px; right: -8px;
+    width: 20px; height: 20px; background: #e74c3c; color: #fff;
+    border-radius: 50%; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5); z-index: 5;
+    border: 1.5px solid #fff;
+  }
+
+  /* Bridge label */
+  .bridge-label {
+    position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: #fff; background: rgba(0,0,0,0.7); padding: 1px 6px;
+    border-radius: 3px; white-space: nowrap; pointer-events: none;
+  }
+
+  /* ===== CONTROLS ===== */
+  #controls-overlay {
+    position: absolute; bottom: 16px; right: 16px; z-index: 50;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .control-btn {
+    width: 40px; height: 40px; background: rgba(22,33,62,0.9); border: 1px solid #0f3460;
+    border-radius: 8px; color: #4a9fd4; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; backdrop-filter: blur(4px);
+  }
+  .control-btn:hover { background: #0f3460; color: #fff; transform: scale(1.05); }
+
+  /* Status bar */
+  #status-bar {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(22,33,62,0.85); border: 1px solid #0f3460; border-radius: 20px;
+    padding: 6px 16px; font-size: 11px; color: #7a8fa6; z-index: 50;
+    backdrop-filter: blur(4px);
+  }
+  #status-bar span { color: #4a9fd4; font-weight: 600; }
+
+  /* Mobile sidebar toggle */
+  #sidebar-toggle {
+    display: none; position: absolute; top: 10px; left: 10px; z-index: 60;
+    width: 40px; height: 40px; background: rgba(22,33,62,0.9); border: 1px solid #0f3460;
+    border-radius: 8px; color: #4a9fd4; font-size: 20px; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+
+  @media (max-width: 768px) {
+    #sidebar {
+      position: absolute; left: 0; top: 0; height: 100%; z-index: 100;
+      transform: translateX(-100%); transition: transform 0.3s;
+    }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-toggle { display: flex; }
+  }
+
+  /* Rotate handle */
+  .rotate-handle {
+    position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
+    width: 20px; height: 20px; background: rgba(74,159,212,0.9); border: 1.5px solid #fff;
+    border-radius: 50%; cursor: grab; display: none;
+    align-items: center; justify-content: center; font-size: 10px; color: #fff;
+    z-index: 6;
+  }
+  .bridge-asset.selected .rotate-handle { display: flex; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #16213e; }
+  ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #1a5c8a; }
+
+  /* Tooltip */
+  .bridge-tooltip {
+    position: absolute; background: rgba(15,52,96,0.95); border: 1px solid #4a9fd4;
+    border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e0e0e0;
+    z-index: 200; pointer-events: none; white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+  }
+  .bridge-tooltip .tt-title { font-weight: 700; color: #4a9fd4; margin-bottom: 4px; }
+  .bridge-tooltip .tt-row { display: flex; gap: 8px; }
+  .bridge-tooltip .tt-label { color: #7a8fa6; }
+
+  /* Empty state */
+  #empty-state {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; color: #4a5a6a; z-index: 5;
+  }
+  #empty-state h2 { font-size: 16px; margin-bottom: 6px; }
+  #empty-state p { font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Sidebar toggle for mobile -->
+  <div id="sidebar-toggle">☰</div>
+
+  <!-- ===== SIDEBAR ===== -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>🌉 Bridge QC Yard Tracker</h1>
+      <div class="subtitle">Contech Engineered Solutions · Greeley, CO</div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>📊 Yard Stats</h3>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Bridges</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-qc">0</div><div class="stat-label">QC Hold</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-ready">0</div><div class="stat-label">Ready</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-shipped">0</div><div class="stat-label">Shipped</div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>🏗️ Add Bridge</h3>
+      <div class="bridge-types" id="bridge-types">
+        <button class="bridge-type-btn" onclick="addBridge('girder')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#4a7ab8,#2a5a98)"></span>
+          Girder Bridge
+        </button>
+        <button class="bridge-type-btn" onclick="addBridge('pedestrian')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#2aac8a,#1a8a6a)"></span>
+          Pedestrian Bridge
+        </button>
+        <button class="bridge-type-btn" onclick="addBridge('truss')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#c85a3a,#a8452a)"></span>
+          Truss Bridge
+        </button>
+        <button class="bridge-type-btn" onclick="addBridge('suspension')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#8a6abf,#6a4a9f)"></span>
+          Suspension Bridge
+        </button>
+        <button class="bridge-type-btn" onclick="addBridge('modular')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#d4a843,#b48823)"></span>
+          Modular Section
+        </button>
+        <button class="bridge-type-btn" onclick="addBridge('loose_parts')">
+          <span class="bridge-icon-mini" style="background:linear-gradient(135deg,#888,#666)"></span>
+          Loose Parts / Crate
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>🔧 Tools</h3>
+      <div class="toolbox">
+        <button class="tool-btn" id="tool-rotate" onclick="rotateSelected()">↻ Rotate</button>
+        <button class="tool-btn" id="tool-delete" onclick="deleteSelected()">🗑 Delete</button>
+        <button class="tool-btn" onclick="saveData()">💾 Save</button>
+        <button class="tool-btn" onclick="loadData()">📂 Load</button>
+        <button class="tool-btn" onclick="exportData()">⬆ Export</button>
+        <button class="tool-btn" onclick="clearAll()">⚡ Clear All</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="info-panel">
+      <h3>📋 Bridge Info</h3>
+      <div id="info-content"></div>
+      <div class="info-actions">
+        <button class="btn-save" onclick="saveBridgeInfo()">Save</button>
+        <button class="btn-delete" onclick="deleteSelected()">Delete</button>
+        <button class="btn-close" onclick="closeInfoPanel()">Close</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>📖 How To Use</h3>
+      <div style="font-size:11px;color:#7a8fa6;line-height:1.6">
+        <div>• Click a bridge type above to add it</div>
+        <div>• <b>Drag</b> bridges to position them</div>
+        <div>• <b>Double-click</b> a bridge to edit info</div>
+        <div>• <b>Click</b> to select, then use rotate</div>
+        <div>• <b>Scroll</b> to zoom · <b>Drag canvas</b> to pan</div>
+        <div>• Data auto-saves to browser storage</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CANVAS ===== -->
+  <div id="canvas-container">
+    <div id="status-bar">
+      Zoom: <span id="zoom-level">100%</span> | Bridges: <span id="bridge-count">0</span> | <span id="last-action">Ready</span>
+    </div>
+
+    <div id="yard-canvas">
+      <!-- Roads -->
+      <div class="road road-hwy85"></div>
+      <div class="road road-66"></div>
+
+      <!-- Railroad -->
+      <div class="railroad"></div>
+
+      <!-- Corn field -->
+      <div class="corn-field"></div>
+
+      <!-- Yard area with grid -->
+      <div class="yard-area" id="yard-area">
+        <!-- Storage bay labels -->
+        <div class="bay-label" style="top:10px;left:10px">Bay 1</div>
+        <div class="bay-label" style="top:10px;left:200px">Bay 2</div>
+        <div class="bay-label" style="top:10px;left:400px">Bay 3</div>
+        <div class="bay-label" style="top:10px;left:600px">Bay 4</div>
+        <div class="bay-label" style="top:250px;left:10px">Bay 5</div>
+        <div class="bay-label" style="top:250px;left:200px">Bay 6</div>
+        <div class="bay-label" style="top:250px;left:400px">Bay 7</div>
+        <div class="bay-label" style="top:250px;left:600px">Bay 8</div>
+        <div class="bay-label" style="top:500px;left:10px">Bay 9</div>
+        <div class="bay-label" style="top:500px;left:200px">Bay 10</div>
+        <div class="bay-label" style="top:500px;left:400px">Bay 11</div>
+        <div class="bay-label" style="top:500px;left:600px">Bay 12</div>
+        <div class="bay-label" style="top:750px;left:10px">Bay 13</div>
+        <div class="bay-label" style="top:750px;left:200px">Bay 14</div>
+        <div class="bay-label" style="top:750px;left:400px">Bay 15</div>
+        <div class="bay-label" style="top:750px;left:600px">Bay 16</div>
+
+        <!-- Steel stock lanes (right side) -->
+        <div class="steel-lane" style="right:0;top:40px;width:30px;height:700px"></div>
+        <div class="steel-lane" style="right:35px;top:40px;width:25px;height:700px;opacity:0.5"></div>
+      </div>
+
+      <!-- Shop building -->
+      <div class="shop-building">
+        <div class="shop-logo">CONTECH<div class="sub">ENGINEERED SOLUTIONS</div></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls-overlay">
+      <button class="control-btn" onclick="zoomIn()" title="Zoom In">+</button>
+      <button class="control-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+      <button class="control-btn" onclick="resetView()" title="Reset View">⌂</button>
+    </div>
+
+    <div id="empty-state">
+      <h2>No bridges in yard</h2>
+      <p>Add a bridge from the sidebar to get started</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+let bridges = [];
+let selectedBridge = null;
+let draggingBridge = null;
+let dragOffset = { x: 0, y: 0 };
+let panOffset = { x: 0, y: 0 };
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let zoom = 1;
+let nextId = 1;
+
+// Canvas dimensions (the virtual yard space)
+const CANVAS_W = 800;
+const CANVAS_H = 1200;
+
+// Bridge type configs
+const BRIDGE_TYPES = {
+  girder:      { label: 'Girder Bridge',      defaultW: 120, defaultH: 28, color: '#4a7ab8' },
+  pedestrian:  { label: 'Pedestrian Bridge',   defaultW: 100, defaultH: 20, color: '#2aac8a' },
+  truss:       { label: 'Truss Bridge',        defaultW: 130, defaultH: 32, color: '#c85a3a' },
+  suspension:  { label: 'Suspension Bridge',   defaultW: 140, defaultH: 30, color: '#8a6abf' },
+  modular:     { label: 'Modular Section',     defaultW: 60,  defaultH: 24, color: '#d4a843' },
+  loose_parts: { label: 'Loose Parts / Crate', defaultW: 40,  defaultH: 36, color: '#888888' }
+};
+
+// ===== INIT =====
+const canvasContainer = document.getElementById('canvas-container');
+const yardCanvas = document.getElementById('yard-canvas');
+const yardArea = document.getElementById('yard-area');
+
+// Set canvas size
+yardCanvas.style.width = CANVAS_W + 'px';
+yardCanvas.style.height = CANVAS_H + 'px';
+
+// Auto-load on start
+window.addEventListener('load', () => {
+  loadData(true); if (bridges.length === 0) { loadSampleData(); }
+  updateStats();
+});
+
+// ===== ZOOM & PAN =====
+function applyTransform() {
+  yardCanvas.style.transform = `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`;
+  document.getElementById('zoom-level').textContent = Math.round(zoom * 100) + '%';
+}
+
+function zoomIn() { zoom = Math.min(zoom * 1.2, 3); applyTransform(); }
+function zoomOut() { zoom = Math.max(zoom / 1.2, 0.3); applyTransform(); }
+function resetView() { zoom = 1; panOffset = { x: 0, y: 0 }; applyTransform(); }
+
+canvasContainer.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = canvasContainer.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const oldZoom = zoom;
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  zoom = Math.max(0.3, Math.min(zoom * delta, 3));
+
+  // Zoom toward mouse position
+  panOffset.x = mouseX - (mouseX - panOffset.x) * (zoom / oldZoom);
+  panOffset.y = mouseY - (mouseY - panOffset.y) * (zoom / oldZoom);
+
+  applyTransform();
+});
+
+// Pan with empty canvas drag
+canvasContainer.addEventListener('mousedown', (e) => {
+  if (e.target === canvasContainer || e.target === yardCanvas || e.target.classList.contains('yard-area') || e.target.classList.contains('bay-label')) {
+    isPanning = true;
+    panStart = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+    canvasContainer.classList.add('panning');
+    deselectBridge();
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (isPanning) {
+    panOffset = { x: e.clientX - panStart.x, y: e.clientY - panStart.y };
+    applyTransform();
+  }
+  if (draggingBridge) {
+    handleBridgeDrag(e);
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (isPanning) { isPanning = false; canvasContainer.classList.remove('panning'); }
+  if (draggingBridge) {
+    draggingBridge.classList.remove('dragging');
+    draggingBridge = null;
+    saveData();
+  }
+});
+
+// ===== BRIDGE MANAGEMENT =====
+function addBridge(type) {
+  const config = BRIDGE_TYPES[type];
+  if (!config) return;
+
+  // Place near center of visible area
+  const rect = canvasContainer.getBoundingClientRect();
+  const centerX = (rect.width / 2 - panOffset.x) / zoom - config.defaultW / 2;
+  const centerY = (rect.height / 2 - panOffset.y) / zoom - config.defaultH / 2;
+
+  const bridge = {
+    id: nextId++,
+    type: type,
+    x: Math.max(60, Math.min(centerX, CANVAS_W - config.defaultW - 60)),
+    y: Math.max(50, Math.min(centerY, CANVAS_H - config.defaultH - 50)),
+    width: config.defaultW,
+    height: config.defaultH,
+    rotation: 0,
+    jobNumber: '',
+    jobName: '',
+    status: 'In Yard',
+    qcStatus: 'Pending',
+    span: '',
+    weight: '',
+    heatNumber: '',
+    location: '',
+    notes: '',
+    dateIn: new Date().toISOString().split('T')[0]
+  };
+
+  bridges.push(bridge);
+  renderBridge(bridge);
+  selectBridge(bridge.id);
+  updateStats();
+  saveData();
+  setStatus(`Added ${config.label}`);
+  hideEmptyState();
+}
+
+function renderBridge(bridge) {
+  const config = BRIDGE_TYPES[bridge.type];
+  const el = document.createElement('div');
+  el.className = `bridge-asset bridge-${bridge.type}`;
+  el.id = `bridge-${bridge.id}`;
+  el.dataset.bridgeId = bridge.id;
+  el.style.left = bridge.x + 'px';
+  el.style.top = bridge.y + 'px';
+  el.style.width = bridge.width + 'px';
+  el.style.height = bridge.height + 'px';
+  el.style.transform = `rotate(${bridge.rotation}deg)`;
+
+  // Visual
+  const visual = document.createElement('div');
+  visual.className = 'bridge-visual';
+  visual.style.width = '100%';
+  visual.style.height = '100%';
+  el.appendChild(visual);
+
+  // QC hold tag
+  if (bridge.qcStatus === 'Hold') {
+    const tag = document.createElement('div');
+    tag.className = 'qc-tag';
+    tag.textContent = '!';
+    el.appendChild(tag);
+  }
+
+  // Label
+  if (bridge.jobNumber) {
+    const label = document.createElement('div');
+    label.className = 'bridge-label';
+    label.textContent = bridge.jobNumber;
+    el.appendChild(label);
+  }
+
+  // Rotate handle
+  const rotateHandle = document.createElement('div');
+  rotateHandle.className = 'rotate-handle';
+  rotateHandle.innerHTML = '↻';
+  rotateHandle.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    startRotate(e, bridge);
+  });
+  el.appendChild(rotateHandle);
+
+  // Drag
+  el.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('rotate-handle')) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    selectBridge(bridge.id);
+    draggingBridge = el;
+    el.classList.add('dragging');
+
+    const rect = yardCanvas.getBoundingClientRect();
+    const scale = zoom;
+    dragOffset = {
+      x: (e.clientX - rect.left) / scale - bridge.x,
+      y: (e.clientY - rect.top) / scale - bridge.y
+    };
+  });
+
+  // Double-click to edit
+  el.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    selectBridge(bridge.id);
+    showInfoPanel(bridge);
+  });
+
+  // Hover tooltip
+  el.addEventListener('mouseenter', () => showTooltip(bridge, el));
+  el.addEventListener('mouseleave', hideTooltip);
+
+  yardCanvas.appendChild(el);
+}
+
+function handleBridgeDrag(e) {
+  if (!draggingBridge) return;
+  const bridgeId = parseInt(draggingBridge.dataset.bridgeId);
+  const bridge = bridges.find(b => b.id === bridgeId);
+  if (!bridge) return;
+
+  const rect = yardCanvas.getBoundingClientRect();
+  const scale = zoom;
+
+  bridge.x = Math.max(56, Math.min((e.clientX - rect.left) / scale - dragOffset.x, CANVAS_W - bridge.width - 50));
+  bridge.y = Math.max(40, Math.min((e.clientY - rect.top) / scale - dragOffset.y, CANVAS_H - bridge.height - 44));
+
+  draggingBridge.style.left = bridge.x + 'px';
+  draggingBridge.style.top = bridge.y + 'px';
+}
+
+// ===== ROTATION =====
+let rotatingBridge = null;
+let rotateStartAngle = 0;
+let rotateStartRotation = 0;
+
+function startRotate(e, bridge) {
+  rotatingBridge = bridge;
+  const el = document.getElementById(`bridge-${bridge.id}`);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  rotateStartAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+  rotateStartRotation = bridge.rotation;
+}
+
+window.addEventListener('mousemove', (e) => {
+  if (rotatingBridge) {
+    const el = document.getElementById(`bridge-${rotatingBridge.id}`);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+    rotatingBridge.rotation = (rotateStartRotation + angle - rotateStartAngle) % 360;
+    el.style.transform = `rotate(${rotatingBridge.rotation}deg)`;
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (rotatingBridge) {
+    rotatingBridge = null;
+    saveData();
+  }
+});
+
+function rotateSelected() {
+  if (!selectedBridge) return;
+  const bridge = bridges.find(b => b.id === selectedBridge);
+  if (!bridge) return;
+  bridge.rotation = (bridge.rotation + 45) % 360;
+  const el = document.getElementById(`bridge-${bridge.id}`);
+  if (el) el.style.transform = `rotate(${bridge.rotation}deg)`;
+  saveData();
+  setStatus(`Rotated ${BRIDGE_TYPES[bridge.type].label}`);
+}
+
+// ===== SELECTION =====
+function selectBridge(id) {
+  deselectBridge();
+  selectedBridge = id;
+  const el = document.getElementById(`bridge-${id}`);
+  if (el) el.classList.add('selected');
+  const bridge = bridges.find(b => b.id === id);
+  if (bridge) showInfoPanel(bridge);
+}
+
+function deselectBridge() {
+  if (selectedBridge) {
+    const el = document.getElementById(`bridge-${selectedBridge}`);
+    if (el) el.classList.remove('selected');
+    selectedBridge = null;
+  }
+}
+
+function deleteSelected() {
+  if (!selectedBridge) return;
+  const bridge = bridges.find(b => b.id === selectedBridge);
+  if (!bridge) return;
+  bridges = bridges.filter(b => b.id !== selectedBridge);
+  const el = document.getElementById(`bridge-${selectedBridge}`);
+  if (el) el.remove();
+  selectedBridge = null;
+  closeInfoPanel();
+  updateStats();
+  saveData();
+  setStatus(`Deleted ${BRIDGE_TYPES[bridge.type].label}`);
+  if (bridges.length === 0) showEmptyState();
+}
+
+// ===== INFO PANEL =====
+function showInfoPanel(bridge) {
+  const panel = document.getElementById('info-panel');
+  const content = document.getElementById('info-content');
+  panel.classList.add('visible');
+
+  const config = BRIDGE_TYPES[bridge.type];
+  content.innerHTML = `
+    <div class="info-edit-row">
+      <label>Bridge Type</label>
+      <input type="text" value="${config.label}" disabled style="opacity:0.6">
+    </div>
+    <div class="info-edit-row">
+      <label>Job Number</label>
+      <input type="text" id="edit-jobNumber" value="${bridge.jobNumber || ''}" placeholder="e.g. 24-0153">
+    </div>
+    <div class="info-edit-row">
+      <label>Job Name</label>
+      <input type="text" id="edit-jobName" value="${bridge.jobName || ''}" placeholder="e.g. County Road Bridge">
+    </div>
+    <div class="info-edit-row">
+      <label>Status</label>
+      <select id="edit-status">
+        <option value="In Yard" ${bridge.status === 'In Yard' ? 'selected' : ''}>In Yard</option>
+        <option value="In Shop" ${bridge.status === 'In Shop' ? 'selected' : ''}>In Shop</option>
+        <option value="QC Hold" ${bridge.status === 'QC Hold' ? 'selected' : ''}>QC Hold</option>
+        <option value="Ready to Ship" ${bridge.status === 'Ready to Ship' ? 'selected' : ''}>Ready to Ship</option>
+        <option value="Shipped" ${bridge.status === 'Shipped' ? 'selected' : ''}>Shipped</option>
+      </select>
+    </div>
+    <div class="info-edit-row">
+      <label>QC Status</label>
+      <select id="edit-qcStatus">
+        <option value="Pending" ${bridge.qcStatus === 'Pending' ? 'selected' : ''}>Pending</option>
+        <option value="Hold" ${bridge.qcStatus === 'Hold' ? 'selected' : ''}>⚠️ Hold</option>
+        <option value="Pass" ${bridge.qcStatus === 'Pass' ? 'selected' : ''}>Pass</option>
+        <option value="Fail" ${bridge.qcStatus === 'Fail' ? 'selected' : ''}>Fail</option>
+      </select>
+    </div>
+    <div class="info-edit-row">
+      <label>Span (ft)</label>
+      <input type="text" id="edit-span" value="${bridge.span || ''}" placeholder="e.g. 80">
+    </div>
+    <div class="info-edit-row">
+      <label>Weight (lbs)</label>
+      <input type="text" id="edit-weight" value="${bridge.weight || ''}" placeholder="e.g. 15,000">
+    </div>
+    <div class="info-edit-row">
+      <label>Heat Number</label>
+      <input type="text" id="edit-heatNumber" value="${bridge.heatNumber || ''}" placeholder="MTR heat #">
+    </div>
+    <div class="info-edit-row">
+      <label>Yard Location</label>
+      <input type="text" id="edit-location" value="${bridge.location || ''}" placeholder="e.g. Bay 3 / Row A">
+    </div>
+    <div class="info-edit-row">
+      <label>Date In</label>
+      <input type="date" id="edit-dateIn" value="${bridge.dateIn || ''}">
+    </div>
+    <div class="info-edit-row">
+      <label>Notes</label>
+      <textarea id="edit-notes" rows="2" placeholder="Any notes...">${bridge.notes || ''}</textarea>
+    </div>
+  `;
+
+  // Auto-update status from QC
+  document.getElementById('edit-qcStatus')?.addEventListener('change', (e) => {
+    if (e.target.value === 'Hold') {
+      document.getElementById('edit-status').value = 'QC Hold';
+    }
+  });
+}
+
+function saveBridgeInfo() {
+  if (!selectedBridge) return;
+  const bridge = bridges.find(b => b.id === selectedBridge);
+  if (!bridge) return;
+
+  bridge.jobNumber = document.getElementById('edit-jobNumber').value;
+  bridge.jobName = document.getElementById('edit-jobName').value;
+  bridge.status = document.getElementById('edit-status').value;
+  bridge.qcStatus = document.getElementById('edit-qcStatus').value;
+  bridge.span = document.getElementById('edit-span').value;
+  bridge.weight = document.getElementById('edit-weight').value;
+  bridge.heatNumber = document.getElementById('edit-heatNumber').value;
+  bridge.location = document.getElementById('edit-location').value;
+  bridge.dateIn = document.getElementById('edit-dateIn').value;
+  bridge.notes = document.getElementById('edit-notes').value;
+
+  // Re-render to update QC tag and label
+  const el = document.getElementById(`bridge-${bridge.id}`);
+  if (el) el.remove();
+  renderBridge(bridge);
+  selectBridge(bridge.id);
+
+  saveData();
+  updateStats();
+  setStatus('Bridge info saved');
+}
+
+function closeInfoPanel() {
+  document.getElementById('info-panel').classList.remove('visible');
+}
+
+// ===== TOOLTIP =====
+let tooltipEl = null;
+function showTooltip(bridge, el) {
+  hideTooltip();
+  tooltipEl = document.createElement('div');
+  tooltipEl.className = 'bridge-tooltip';
+  const config = BRIDGE_TYPES[bridge.type];
+  tooltipEl.innerHTML = `
+    <div class="tt-title">${config.label}</div>
+    ${bridge.jobNumber ? `<div class="tt-row"><span class="tt-label">Job:</span> ${bridge.jobNumber}</div>` : ''}
+    ${bridge.jobName ? `<div class="tt-row"><span class="tt-label">Name:</span> ${bridge.jobName}</div>` : ''}
+    ${bridge.status ? `<div class="tt-row"><span class="tt-label">Status:</span> ${bridge.status}</div>` : ''}
+    ${bridge.qcStatus ? `<div class="tt-row"><span class="tt-label">QC:</span> ${bridge.qcStatus}</div>` : ''}
+    ${bridge.span ? `<div class="tt-row"><span class="tt-label">Span:</span> ${bridge.span} ft</div>` : ''}
+    <div class="tt-row" style="margin-top:4px;color:#7a8fa6;font-size:10px">Double-click to edit</div>
+  `;
+  document.body.appendChild(tooltipEl);
+
+  const updateTooltip = () => {
+    if (!tooltipEl) return;
+    const rect = el.getBoundingClientRect();
+    tooltipEl.style.left = (rect.left + rect.width + 8) + 'px';
+    tooltipEl.style.top = (rect.top - 4) + 'px';
+  };
+  updateTooltip();
+}
+function hideTooltip() {
+  if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
+}
+
+// ===== STATS =====
+function updateStats() {
+  document.getElementById('stat-total').textContent = bridges.length;
+  document.getElementById('stat-qc').textContent = bridges.filter(b => b.qcStatus === 'Hold').length;
+  document.getElementById('stat-ready').textContent = bridges.filter(b => b.status === 'Ready to Ship').length;
+  document.getElementById('stat-shipped').textContent = bridges.filter(b => b.status === 'Shipped').length;
+  document.getElementById('bridge-count').textContent = bridges.length;
+  if (bridges.length === 0) showEmptyState(); else hideEmptyState();
+}
+
+function setStatus(msg) {
+  document.getElementById('last-action').textContent = msg;
+}
+
+function showEmptyState() { document.getElementById('empty-state').style.display = 'block'; }
+function hideEmptyState() { document.getElementById('empty-state').style.display = 'none'; }
+
+// ===== PERSISTENCE =====
+function saveData() {
+  const data = { bridges, nextId };
+  localStorage.setItem('contech_yard_tracker', JSON.stringify(data));
+}
+
+function loadData(silent) {
+  const raw = localStorage.getItem('contech_yard_tracker');
+  if (!raw) { if (!silent) setStatus('No saved data found'); return; }
+  try {
+    const data = JSON.parse(raw);
+    bridges = data.bridges || [];
+    nextId = data.nextId || (bridges.length + 1);
+    // Clear existing
+    document.querySelectorAll('.bridge-asset').forEach(el => el.remove());
+    bridges.forEach(b => renderBridge(b));
+    updateStats();
+    if (!silent) setStatus(`Loaded ${bridges.length} bridges`);
+  } catch (e) {
+    if (!silent) setStatus('Error loading data');
+  }
+}
+
+function exportData() {
+  const data = JSON.stringify({ bridges, nextId, exportDate: new Date().toISOString() }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `yard_tracker_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Data exported');
+}
+
+function clearAll() {
+  if (!confirm('Clear all bridges from the yard? This cannot be undone.')) return;
+  bridges = [];
+  nextId = 1;
+  document.querySelectorAll('.bridge-asset').forEach(el => el.remove());
+  saveData();
+  updateStats();
+  closeInfoPanel();
+  setStatus('Yard cleared');
+}
+
+// ===== MOBILE =====
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+// Click outside to deselect
+yardCanvas.addEventListener('click', (e) => {
+  if (e.target === yardCanvas || e.target.classList.contains('yard-area')) {
+    deselectBridge();
+    closeInfoPanel();
+  }
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedBridge) deleteSelected(); }
+  if (e.key === 'r' || e.key === 'R') { rotateSelected(); }
+  if (e.key === 'Escape') { deselectBridge(); closeInfoPanel(); }
+});
+
+// ===== SAMPLE DATA =====
+function loadSampleData() {
+  bridges = [
+    { id: 1, type: 'girder', x: 80, y: 80, width: 120, height: 28, rotation: 0, jobNumber: '24-0153', jobName: 'CR-66 Overpass', status: 'In Yard', qcStatus: 'Pending', span: '80', weight: '15,000', heatNumber: 'H-4471', location: 'Bay 1', notes: '', dateIn: '2026-07-28' },
+    { id: 2, type: 'pedestrian', x: 300, y: 80, width: 100, height: 20, rotation: 0, jobNumber: '24-0188', jobName: 'Riverwalk Trail', status: 'QC Hold', qcStatus: 'Hold', span: '60', weight: '8,200', heatNumber: 'H-5102', location: 'Bay 2', notes: 'Weld inspection failed - rework needed', dateIn: '2026-07-25' },
+    { id: 3, type: 'truss', x: 80, y: 280, width: 130, height: 32, rotation: 0, jobNumber: '24-0201', jobName: 'Highway 85 Bridge', status: 'Ready to Ship', qcStatus: 'Pass', span: '100', weight: '22,000', heatNumber: 'H-5234', location: 'Bay 5', notes: '', dateIn: '2026-07-20' },
+    { id: 4, type: 'modular', x: 300, y: 280, width: 60, height: 24, rotation: 90, jobNumber: '24-0215', jobName: 'Culvert Extension', status: 'In Yard', qcStatus: 'Pending', span: '40', weight: '5,000', heatNumber: 'H-5301', location: 'Bay 6', notes: '', dateIn: '2026-07-29' },
+    { id: 5, type: 'loose_parts', x: 500, y: 300, width: 40, height: 36, rotation: 0, jobNumber: '24-0190', jobName: 'Hardware Kit', status: 'In Yard', qcStatus: 'Pending', span: '', weight: '500', heatNumber: '', location: 'Bay 7', notes: 'Bolts, plates, hardware', dateIn: '2026-07-27' },
+  ];
+  nextId = 6;
+  document.querySelectorAll('.bridge-asset').forEach(el => el.remove());
+  bridges.forEach(b => renderBridge(b));
+  updateStats();
+  saveData();
+  setStatus('Sample data loaded');
+}
+</script>
+</body>
+</html>

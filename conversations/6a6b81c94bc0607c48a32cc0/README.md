@@ -1,77 +1,87 @@
 # Q.C. Quality Console
 
-Steel quality control platform for bridge & structural steel fabrication.
-Live at: https://steel-grade-vault.base44.app
+Automated MTR (Material Test Report) verification system for domestic steel compliance and welding code (AWS D1.1/D1.5) validation.
 
-## What This Does
+## Overview
 
-Automates MTR (Material Test Report) verification for domestic steel compliance:
-- **Extraction**: AWS Textract + OpenAI GPT-4o vision pipeline reads MTR PDFs (text-based and scanned)
-- **Review**: 3-step workflow — Review → Chemical Analysis → Approval/Stamping
-- **Compliance**: Verifies against ASTM A588/A709 Grade 50W and AWS D1.1/D1.5 welding codes
-- **Tracking**: Yard tracker with satellite imagery for material location tracking
+Verifies Mill Test Reports against:
+- **ASTM A588/A709 Grade 50W** — weathering steel chemistry limits
+- **AWS D1.1/D1.5** — welding code requirements (CE limits, carbon caps)
+- **Buy America / Build America** — domestic origin verification
+- **Mandatory verbiage** — "Fully killed fine grain practice" + "No weld repair"
 
 ## Project Structure
 
 ```
-├── functions/                  # Backend functions (deployed on Base44)
-│   ├── extractMtrWithAI.ts     # Main extraction function (Textract + GPT-4o)
-│   ├── getMtrStatus.ts         # Status check endpoint
-│   └── uploadMtrText.ts        # Text upload handler
-├── skills/                     # Processing scripts
-│   └── mtr-processor/
-│       ├── process_mtr.py      # MTR extraction pipeline
-│       └── highlight_scanned.py # Scan highlighting
-├── mtr_knowledge_base.js       # Mill templates, steel specs, chemistry limits
-├── mtr_upload_component.txt     # React component for MTR Review upload zone
-├── qc_quality_console_template.html  # Console UI template
-├── qc_quality_console_dmac.html # DMAC variant
-├── mtr_verifier.html           # Original MTR verification tool
-├── yard_tracker.html           # Yard tracking map
-├── yard_map.html               # Yard map page
-├── console_data.json           # Seed data for console
-├── mtr_entity_records.json     # Entity records for database
-├── mtr_all_results.json        # Full extraction results
-├── mtr_results_batch1.json      # Batch 1 results
-├── mtr_results_batch2.json     # Batch 2 results
-├── mtr_updates.json            # Record updates
-├── test_*.js                   # Test scripts for extraction pipeline
-├── test_*.py                   # Python test scripts
-├── converted_*.png             # Converted MTR scans (300dpi for OCR)
-├── yard_satellite*.png         # Yard satellite imagery
-└── *.pdf                       # Sample MTR documents
+qc-quality-console/
+├── src/
+│   ├── extraction/        # MTR extraction pipeline (AWS Textract + GPT-4o)
+│   │   ├── process_mtr.py      # Main extraction processor
+│   │   ├── highlight_scanned.py # Image enhancement & highlighting
+│   │   ├── mtr_knowledge_base.js # MTR field definitions & specs
+│   │   ├── check_inspection_items.js # Killed/weld repair verification
+│   │   └── test_*.js           # Extraction test scripts
+│   ├── functions/          # Backend functions (TypeScript)
+│   │   ├── extractMtr.ts       # AWS Textract Custom Queries extraction
+│   │   ├── extractMtrWithAI.ts # Textract + GPT-4o pipeline
+│   │   ├── getMtrStatus.ts     # Record status checker
+│   │   └── uploadMtrText.ts    # Text upload handler
+│   └── skills/             # Reusable processing skills
+├── html/                  # Frontend tools (standalone HTML)
+│   ├── mtr_verifier.html       # 3-step MTR review tool
+│   ├── qc_quality_console_template.html # Main console template
+│   ├── qc_quality_console_dmac.html    # DMAC variant
+│   ├── yard_tracker.html       # Yard tracking map
+│   ├── yard_map.html           # Satellite yard map
+│   └── mtr_upload_component.txt # File upload component code
+├── data/                  # Extracted data & records
+├── docs/                  # Documentation
+└── samples/               # Sample MTR PDFs
 ```
 
 ## Tech Stack
 
-- **Platform**: Base44 (app builder, database, backend functions)
-- **OCR**: AWS Textract (table/form extraction)
-- **AI**: OpenAI GPT-4o (vision-based field extraction)
-- **Frontend**: React (Base44 generated) + standalone HTML tools
-- **Database**: MtrRecord entity on Base44
+- **AWS Textract** — OCR & Custom Queries for targeted field extraction
+- **OpenAI GPT-4o** — Intelligence layer for field mapping & verification
+- **AWS IAM** — textract-user with AmazonTextractFullAccess
+- **Base44** — Database & entity storage (MtrRecord entity)
 
-## Key MTR Fields (Priority Order)
+## Extraction Pipeline
 
-1. Heat numbers (most critical — trace material to mill + chemistry)
-2. Specifications (A588, A709, A36, A500, A992, etc.)
-3. Dimensions/Size (W24x76, C8x18.75, HSS10SQx375, etc.)
-4. Grades (50W, Grade B, etc.)
-5. CVN (Charpy V-notch impact tests)
-6. Country of Origin (Buy America / Build America compliance)
+1. PDF uploaded → AWS Textract AnalyzeDocument (QUERIES + TABLES + LAYOUT)
+2. 25 MTR-specific Custom Queries extract: heat numbers, specs, grade, chemistry, CVN, etc.
+3. Raw text scanned for mandatory verbiage (killed/fine grain, no weld repair)
+4. Chemistry values parsed and cross-referenced against ASTM/AWS limits
+5. Results saved to MtrRecord entity
 
-## Current Status
+## AWS Configuration
 
-- ✅ Backend extraction pipeline working (18 MTRs processed)
-- ✅ Dashboard live with 18 records
-- ✅ Backend function `extractMtr` deployed
-- ⬜ Frontend upload zone needs manual wiring (see mtr_upload_component.txt)
-- ⬜ MTR archive search & compile system (planned)
-- ⬜ Drawing review module (planned)
+- **Region:** us-east-1
+- **IAM User:** textract-user
+- **Account ID:** 388094502765
+- **Required Policy:** AmazonTextractFullAccess
 
-## To Push to GitHub
+## Environment Variables
 
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/qc-quality-console.git
-git branch -M main
-git push -u origin main
 ```
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+OPENAI_API_KEY=sk-proj-...
+```
+
+## Verification Checks
+
+| Check | Spec | Limit |
+|-------|------|-------|
+| Carbon (C) | D1.5 Cl 5.4.2 | ≤ 0.12% (restricts WPS to 50W) |
+| Carbon Equivalent (CE) | D1.1/D1.5 | ≤ 0.47% |
+| Phosphorus (P) | A588/A709 | ≤ 0.04% |
+| Sulfur (S) | A588/A709 | ≤ 0.05% |
+| Manganese (Mn) | A709 Table 4 | ≤ 1.25% (flange ≤ 3/4") |
+| Killed/Fine Grain | Mandatory | Must state "fully killed fine grain practice" |
+| No Weld Repair | Mandatory | Must state "no weld repair" |
+| Country of Origin | Buy America | Must be USA/domestic |
+
+## License
+
+Proprietary — All rights reserved
