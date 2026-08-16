@@ -10,3 +10,4 @@ test_*.png
 converted_*.png
 ---
 .next/
+vercel-env-vars.txt
