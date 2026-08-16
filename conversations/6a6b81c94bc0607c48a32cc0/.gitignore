@@ -8,3 +8,5 @@ incoming_files/
 test_screenshot_*.png
 test_*.png
 converted_*.png
+---
+.next/
