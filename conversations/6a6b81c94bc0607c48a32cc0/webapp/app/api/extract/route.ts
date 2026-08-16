@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TextractClient, AnalyzeDocumentCommand } from '@aws-sdk/client-textract';
+import { PDFDocument } from 'pdf-lib';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
 
-    // Step 1: AWS Textract — OCR + Tables
+    // Split multi-page PDFs into individual pages, then Textract each page
     const textractResult = await callTextract(bytes);
 
     // Step 2: GPT-4o — structured field extraction
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       textractRaw: {
         fullText: textractResult.fullText,
         blockCount: textractResult.blockCount,
+        pagesProcessed: textractResult.pagesProcessed,
       },
       extractedData,
     });
@@ -42,12 +44,34 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── AWS Textract via SDK ───
+// ─── Split PDF into individual pages ───
+
+async function splitPdfPages(bytes: Uint8Array): Promise<Uint8Array[]> {
+  const pdfDoc = await PDFDocument.load(bytes);
+  const pageCount = pdfDoc.getPageCount();
+
+  if (pageCount <= 1) {
+    return [bytes];
+  }
+
+  const pages: Uint8Array[] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const singlePageDoc = await PDFDocument.create();
+    const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [i]);
+    singlePageDoc.addPage(copiedPage);
+    const pdfBytes = await singlePageDoc.save();
+    pages.push(new Uint8Array(pdfBytes));
+  }
+  return pages;
+}
+
+// ─── AWS Textract via SDK (multi-page aware) ───
 
 async function callTextract(bytes: Uint8Array): Promise<{
   fullText: string;
   tables: string[][][];
   blockCount: number;
+  pagesProcessed: number;
 }> {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.replace(/['"]/g, '').trim();
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY?.replace(/['"]/g, '').trim();
@@ -62,43 +86,47 @@ async function callTextract(bytes: Uint8Array): Promise<{
     credentials: { accessKeyId, secretAccessKey },
   });
 
-  const command = new AnalyzeDocumentCommand({
-    Document: { Bytes: bytes },
-    FeatureTypes: ['TABLES', 'FORMS', 'LAYOUT'],
-  });
+  // Split multi-page PDFs into single pages — AnalyzeDocument only supports 1 page at a time
+  const pageBytes = await splitPdfPages(bytes);
+  const allLines: string[] = [];
+  const allTables: string[][][] = [];
+  let totalBlocks = 0;
 
-  const result: any = await client.send(command);
+  for (let pageNum = 0; pageNum < pageBytes.length; pageNum++) {
+    const command = new AnalyzeDocumentCommand({
+      Document: { Bytes: pageBytes[pageNum] },
+      FeatureTypes: ['TABLES', 'FORMS', 'LAYOUT'],
+    });
 
-  if (!result.Blocks) {
-    throw new Error('Textract returned no blocks');
-  }
+    const result: any = await client.send(command);
+    const blocks: any[] = result.Blocks || [];
 
-  // Extract lines and tables
-  const blocks: any[] = result.Blocks || [];
-  const lines: string[] = [];
-  const tables: string[][][] = [];
-  const blockMap: Map<string, any> = new Map();
-  for (const b of blocks) {
-    blockMap.set(b.Id, b);
-  }
-
-  for (const block of blocks) {
-    if (block.BlockType === 'LINE' && block.Text) {
-      lines.push(block.Text);
+    const blockMap: Map<string, any> = new Map();
+    for (const b of blocks) {
+      blockMap.set(b.Id, b);
     }
-  }
 
-  for (const block of blocks) {
-    if (block.BlockType === 'TABLE') {
-      const tableData = extractTable(block, blockMap);
-      if (tableData.length > 0) tables.push(tableData);
+    for (const block of blocks) {
+      if (block.BlockType === 'LINE' && block.Text) {
+        allLines.push(block.Text);
+      }
     }
+
+    for (const block of blocks) {
+      if (block.BlockType === 'TABLE') {
+        const tableData = extractTable(block, blockMap);
+        if (tableData.length > 0) allTables.push(tableData);
+      }
+    }
+
+    totalBlocks += blocks.length;
   }
 
   return {
-    fullText: lines.join('\n'),
-    tables,
-    blockCount: blocks.length,
+    fullText: allLines.join('\n'),
+    tables: allTables,
+    blockCount: totalBlocks,
+    pagesProcessed: pageBytes.length,
   };
 }
 
@@ -150,6 +178,11 @@ async function callGPT4o(
 
 CRITICAL FIELDS (in priority order):
 1. Heat Numbers — THE most important field. There may be 3-5+ heats on a single page. Extract ALL of them.
+   - Heat numbers are typically 5-8 digit numbers associated with chemistry data (C, Mn, P, S, etc.)
+   - They are NOT work order numbers, PO numbers, or order numbers.
+   - Heat numbers usually appear near or above the chemistry table rows.
+   - If a number is labeled "WO", "Work Order", "Order", "Lot" — that is NOT a heat number.
+   - Only extract numbers that are clearly labeled as "Heat", "Heat No", "Heat Number", or appear as the identifier in a chemistry table row.
 2. Specification — e.g. ASTM A588, A709, A500, A36, A992. Do NOT guess. If unclear, leave blank.
 3. Size/Type — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2. Treat the full designation as one field.
 4. Grade — e.g. Grade 50W, Grade B, Grade 36. If combined with spec (e.g. "A588 Grade B"), separate them.
@@ -184,6 +217,7 @@ RULES:
 - Do NOT guess or fabricate data. If a field is not present, leave it empty/null.
 - If Textract misread a value (e.g. "AS88" should be "A588"), correct it.
 - Extract ALL heat numbers — do not cap at 2.
+- Do NOT confuse heat numbers with work order (WO) numbers, lot numbers, or order numbers.
 - If the document is not an MTR, return {"extractionConfidence": "not_an_mtr"}.
 - Return ONLY valid JSON, no markdown.`;
 
@@ -203,6 +237,11 @@ RULES:
       temperature: 0.1,
     }),
   });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenAI API error (${response.status}): ${errText.substring(0, 200)}`);
+  }
 
   const result: any = await response.json();
   const content = result.choices?.[0]?.message?.content || '{}';
