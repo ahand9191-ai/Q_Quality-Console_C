@@ -57,7 +57,6 @@ interface ExtractResponse {
   textLength?: number;
   code?: string;
   codeLimits?: CodeLimits;
-  specLimits?: CodeLimits;
   extractedData?: ExtractedData;
 }
 
@@ -85,7 +84,6 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [selectedCode, setSelectedCode] = useState<string>('AWS D1.5');
   const [codeLimits, setCodeLimits] = useState<CodeLimits | null>(null);
-  const [specLimits, setSpecLimits] = useState<CodeLimits | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [stamp, setStamp] = useState<StampConfig | null>(null);
   const [showStampDesigner, setShowStampDesigner] = useState(false);
@@ -170,7 +168,6 @@ export default function Home() {
         setResult(data.extractedData || null);
         setMethod(data.extractionMethod || '');
         setCodeLimits(data.codeLimits || null);
-        setSpecLimits(data.specLimits || null);
         setStep(2);
         // Save to history
         saveToHistory(file.name, selectedCode, data.extractedData!, data.codeLimits?.name || selectedCode);
@@ -487,7 +484,7 @@ export default function Home() {
           </div>
 
           {data.chemistryByHeat && Object.keys(data.chemistryByHeat).length > 0 && codeLimits && (
-            <ChemistryTable data={data.chemistryByHeat} limits={codeLimits} specLimits={specLimits} />
+            <ChemistryTable data={data.chemistryByHeat} limits={codeLimits} />
           )}
 
           {data.cvnByHeat && Object.keys(data.cvnByHeat).length > 0 && (
@@ -565,7 +562,7 @@ export default function Home() {
           </div>
 
           {result.chemistryByHeat && Object.keys(result.chemistryByHeat).length > 0 && codeLimits && (
-            <ChemistryTable data={result.chemistryByHeat} limits={codeLimits} specLimits={specLimits} />
+            <ChemistryTable data={result.chemistryByHeat} limits={codeLimits} />
           )}
 
           {result.mechanicalProperties && Object.keys(result.mechanicalProperties).length > 0 && (
@@ -694,7 +691,7 @@ function ComplianceCheck({ label, passed }: { label: string; passed: boolean }) 
 }
 
 // ─── Chemistry Table ───
-function ChemistryTable({ data, limits, specLimits }: { data: Record<string, Record<string, number | string>>, limits: CodeLimits, specLimits?: CodeLimits | null }) {
+function ChemistryTable({ data, limits }: { data: Record<string, Record<string, number | string>>, limits: CodeLimits }) {
   const allElements = ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Ti', 'CE'];
   const heats = Object.keys(data);
   const elements = allElements.filter(el => heats.some(h => data[h]?.[el] !== undefined && data[h]?.[el] !== ''));
@@ -774,30 +771,6 @@ function ChemistryTable({ data, limits, specLimits }: { data: Record<string, Rec
         </div>
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>{limits.notes}</div>
       </div>
-
-      {/* Spec-Specific Limits (ASTM/ASME material spec) */}
-      {specLimits && (
-        <div style={{ marginTop: 12, padding: 14, background: 'rgba(45, 122, 62, 0.04)', borderRadius: 6, border: '1px solid rgba(45, 122, 62, 0.15)' }}>
-          <h4 style={{ fontSize: 13, fontFamily: 'Georgia, serif', marginBottom: 8, color: '#2d7a3e' }}>
-            Material Spec Limits: {specLimits.name}
-          </h4>
-          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-            These limits are from the actual material specification (ASTM/ASME) on this MTR. Check values against BOTH the welding code limits above AND these spec limits.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
-            {elements.map(el => {
-              const limit = specLimits.elements[el];
-              if (!limit) return null;
-              return (
-                <div key={'spec-' + el} style={{ fontSize: 11, fontFamily: '-apple-system, system-ui, sans-serif' }}>
-                  <strong>{el}:</strong> <span style={{ color: '#2d7a3e' }}>{limit.label}</span>
-                  <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 10 }}>{limit.desc}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
