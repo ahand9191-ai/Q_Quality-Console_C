@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "title": "ASME BPVC Section II — Material Chemistry Composition Limits",
+    "researched_date": "2026-08-16",
+    "basis": "ASME SA-series specifications (adopted from ASTM A-series), heat analysis values unless otherwise noted",
+    "sources": [
+      "wermac.org/pipes/astm_a106.html",
+      "servicesteel.org/resources/astm-a106-pipe",
+      "mtr.ai/blog/astm-a106-grade-b-specification-guide",
+      "metalspiping.com/astm-a516-asme-sa-516-pressure-vessel-plates.html",
+      "wermac.org/pipes/astm_a335.html",
+      "pipingpipeline.com/astm-a335-p1-p11-p22-0-5mo-1-25cr-0-5mo-2-25cr-1mo.html",
+      "prosaicsteel.com/astm_a240_304_stainless_steel_plates_sheets.html",
+      "amardeepsteel.com/blog/astm-a240.html",
+      "gangsteel.net (SA-240 composition tables)",
+      "pennstainless.com/stainless-steel-plate-304-304l-astm-a240"
+    ]
+  },
+  "SA-106": {
+    "specification": "SA-106 / ASTM A106 — Seamless Carbon Steel Pipe for High-Temperature Service",
+    "asme_requirements": {
+      "killed_steel": "Steel shall be killed steel (primary melting: open hearth, basic oxygen, or electric furnace)",
+      "silicon_minimum": "Si min 0.10% serves as deoxidizer confirming killed steel practice",
+      "element_sum_limit": "Sum of Cr + Cu + Mo + Ni + V shall not exceed 1.00%",
+      "manganese_override": "For each 0.01% reduction below specified C max, Mn may increase 0.06% above specified max, up to 1.65% (1.35% for ASME SA-106 per some sources)",
+      "carbon_equivalent": "No CE limit specified in SA-106"
+    },
+    "SA-106 Grade A": {
+      "C":  {"max": 0.25, "label": "Carbon, max %"},
+      "Mn": {"min": 0.27, "max": 0.93, "label": "Manganese, %"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.10, "label": "Silicon, min %"},
+      "Cr": {"max": 0.40, "label": "Chromium, max %"},
+      "Cu": {"max": 0.40, "label": "Copper, max %"},
+      "Mo": {"max": 0.15, "label": "Molybdenum, max %"},
+      "Ni": {"max": 0.40, "label": "Nickel, max %"},
+      "V":  {"max": 0.08, "label": "Vanadium, max %"}
+    },
+    "SA-106 Grade B": {
+      "C":  {"max": 0.30, "label": "Carbon, max %"},
+      "Mn": {"min": 0.29, "max": 1.06, "label": "Manganese, %"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.10, "label": "Silicon, min %"},
+      "Cr": {"max": 0.40, "label": "Chromium, max %"},
+      "Cu": {"max": 0.40, "label": "Copper, max %"},
+      "Mo": {"max": 0.15, "label": "Molybdenum, max %"},
+      "Ni": {"max": 0.40, "label": "Nickel, max %"},
+      "V":  {"max": 0.08, "label": "Vanadium, max %"}
+    },
+    "SA-106 Grade C": {
+      "C":  {"max": 0.35, "label": "Carbon, max %"},
+      "Mn": {"min": 0.29, "max": 1.06, "label": "Manganese, %"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.10, "label": "Silicon, min %"},
+      "Cr": {"max": 0.40, "label": "Chromium, max %"},
+      "Cu": {"max": 0.40, "label": "Copper, max %"},
+      "Mo": {"max": 0.15, "label": "Molybdenum, max %"},
+      "Ni": {"max": 0.40, "label": "Nickel, max %"},
+      "V":  {"max": 0.08, "label": "Vanadium, max %"}
+    }
+  },
+  "SA-516": {
+    "specification": "SA-516 / ASTM A516 — Pressure Vessel Plates, Carbon Steel, for Moderate- and Lower-Temperature Service",
+    "asme_requirements": {
+      "killed_steel": "Steel shall be killed",
+      "fine_grain_practice": "Shall conform to fine austenitic grain size (Grade 5 or finer)",
+      "manufacture": "Open-hearth, basic-oxygen, or electric-arc furnace; may be strand cast or stationary mold for t >= 75mm",
+      "heat_treatment": "Typically normalized and stress relieved",
+      "carbon_equivalent": "CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15; for t <= 25mm: CE <= 0.43; for t > 25mm: CE <= 0.45",
+      "manganese_override": "For each 0.01% below specified C max, Mn may increase 0.06% above max, up to 1.50% (heat) / 1.60% (product analysis)",
+      "hfa_service": "For hydrofluoric acid alkylation service: V <= 0.02%, Nb <= 0.02%, V+Nb <= 0.03%, Ni+Cu <= 0.15%, 0.18% < C <= max specified"
+    },
+    "thickness_bands_note": "Carbon max is thickness-dependent. Heat analysis values shown. Product analysis tolerances are wider.",
+    "SA-516 Grade 55": {
+      "C":  {"max_thk_le_12_5mm": 0.18, "max_thk_12_5_to_50mm": 0.20, "max_thk_50_to_100mm": 0.22, "max_thk_100_to_200mm": 0.24, "max_thk_gt_200mm": 0.26, "label": "Carbon, max % (thickness dependent)"},
+      "Mn": {"min": 0.60, "max": 0.90, "max_thk_gt_12_5mm": 1.20, "label": "Manganese, % (0.60-0.90 for t<=12.5mm; 0.60-1.20 for t>12.5mm)"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.15, "max": 0.40, "label": "Silicon, %"}
+    },
+    "SA-516 Grade 60": {
+      "C":  {"max_thk_le_12_5mm": 0.21, "max_thk_12_5_to_50mm": 0.23, "max_thk_50_to_100mm": 0.25, "max_thk_100_to_200mm": 0.27, "max_thk_gt_200mm": 0.27, "label": "Carbon, max % (thickness dependent)"},
+      "Mn": {"min": 0.60, "max": 0.90, "min_thk_gt_12_5mm": 0.85, "max_thk_gt_12_5mm": 1.20, "label": "Manganese, % (0.60-0.90 for t<=12.5mm; 0.85-1.20 for t>12.5mm)"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.15, "max": 0.40, "label": "Silicon, %"}
+    },
+    "SA-516 Grade 65": {
+      "C":  {"max_thk_le_12_5mm": 0.24, "max_thk_12_5_to_50mm": 0.26, "max_thk_50_to_100mm": 0.28, "max_thk_100_to_200mm": 0.29, "max_thk_gt_200mm": 0.29, "label": "Carbon, max % (thickness dependent)"},
+      "Mn": {"min": 0.85, "max": 1.20, "label": "Manganese, %"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.15, "max": 0.40, "label": "Silicon, %"}
+    },
+    "SA-516 Grade 70": {
+      "C":  {"max_thk_le_12_5mm": 0.27, "max_thk_12_5_to_50mm": 0.28, "max_thk_50_to_100mm": 0.30, "max_thk_100_to_200mm": 0.31, "max_thk_gt_200mm": 0.31, "label": "Carbon, max % (thickness dependent)"},
+      "Mn": {"min": 0.85, "max": 1.20, "label": "Manganese, %"},
+      "P":  {"max": 0.035, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.035, "label": "Sulfur, max %"},
+      "Si": {"min": 0.15, "max": 0.40, "label": "Silicon, %"}
+    }
+  },
+  "SA-335": {
+    "specification": "SA-335 / ASTM A335 — Seamless Ferritic Alloy-Steel Pipe for High-Temperature Service",
+    "asme_requirements": {
+      "heat_treatment": "Fully annealed, isothermal annealed, or normalized and tempered. Min tempering temp: P5/P5b/P9/P21/P22 = 1250F (675C); P1/P2/P11/P12/P15 = 1200F (650C)",
+      "coarse_grain_practice": "Grades P2 and P12 shall be made by coarse-grain melting practice",
+      "carbon_equivalent": "No CE limit specified in SA-335"
+    },
+    "SA-335 P11 (UNS K11597)": {
+      "C":  {"min": 0.05, "max": 0.15, "label": "Carbon, %"},
+      "Mn": {"min": 0.30, "max": 0.60, "label": "Manganese, %"},
+      "P":  {"max": 0.025, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.025, "label": "Sulfur, max %"},
+      "Si": {"min": 0.50, "max": 1.00, "label": "Silicon, %"},
+      "Cr": {"min": 1.00, "max": 1.50, "label": "Chromium, %"},
+      "Mo": {"min": 0.44, "max": 0.65, "label": "Molybdenum, %"}
+    },
+    "SA-335 P22 (UNS K21590)": {
+      "C":  {"min": 0.05, "max": 0.15, "label": "Carbon, %"},
+      "Mn": {"min": 0.30, "max": 0.60, "label": "Manganese, %"},
+      "P":  {"max": 0.025, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.025, "label": "Sulfur, max %"},
+      "Si": {"max": 0.50, "label": "Silicon, max %"},
+      "Cr": {"min": 1.90, "max": 2.60, "label": "Chromium, %"},
+      "Mo": {"min": 0.87, "max": 1.13, "label": "Molybdenum, %"}
+    }
+  },
+  "SA-240": {
+    "specification": "SA-240 / ASTM A240 — Chromium and Chromium-Nickel Stainless Steel Plate, Sheet, and Strip for Pressure Vessels",
+    "asme_requirements": {
+      "carbon_equivalent": "No CE limit specified (stainless steel)",
+      "notes": "304 is the standard 18-8 austenitic stainless (18% Cr, 8% Ni). 316 adds Mo for pitting corrosion resistance."
+    },
+    "SA-240 Type 304 (UNS S30400)": {
+      "C":  {"max": 0.08, "label": "Carbon, max %"},
+      "Mn": {"max": 2.00, "label": "Manganese, max %"},
+      "P":  {"max": 0.045, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.030, "label": "Sulfur, max %"},
+      "Si": {"max": 0.75, "label": "Silicon, max %"},
+      "Cr": {"min": 18.00, "max": 20.00, "label": "Chromium, %"},
+      "Ni": {"min": 8.00, "max": 10.50, "label": "Nickel, %"},
+      "N":  {"max": 0.10, "label": "Nitrogen, max %"}
+    },
+    "SA-240 Type 316 (UNS S31600)": {
+      "C":  {"max": 0.08, "label": "Carbon, max %"},
+      "Mn": {"max": 2.00, "label": "Manganese, max %"},
+      "P":  {"max": 0.045, "label": "Phosphorus, max %"},
+      "S":  {"max": 0.030, "label": "Sulfur, max %"},
+      "Si": {"max": 0.75, "label": "Silicon, max %"},
+      "Cr": {"min": 16.00, "max": 18.00, "label": "Chromium, %"},
+      "Ni": {"min": 10.00, "max": 14.00, "label": "Nickel, %"},
+      "Mo": {"min": 2.00, "max": 3.00, "label": "Molybdenum, %"},
+      "N":  {"max": 0.10, "label": "Nitrogen, max %"}
+    }
+  }
+}
