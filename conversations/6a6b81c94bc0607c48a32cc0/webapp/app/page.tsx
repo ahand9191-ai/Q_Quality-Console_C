@@ -7,6 +7,7 @@ interface ExtractedData {
   specifications: string[];
   grade: string;
   sizes: string[];
+  shape: string;
   materialType: string;
   countryOfOrigin: string;
   chemistryByHeat: Record<string, Record<string, number | string>>;
@@ -143,6 +144,7 @@ export default function Home() {
               <FieldRow label="Heat Numbers" value={result.heatNumbers?.join(', ') || ''} critical />
               <FieldRow label="Specifications" value={result.specifications?.join(', ') || ''} critical />
               <FieldRow label="Grade" value={result.grade || ''} critical />
+              <FieldRow label="Shape" value={result.shape || ''} critical />
               <FieldRow label="Size / Designation" value={result.sizes?.join(', ') || ''} critical />
               <FieldRow label="Material Type" value={result.materialType || ''} critical />
               <FieldRow label="Country of Origin" value={result.countryOfOrigin || ''} critical />

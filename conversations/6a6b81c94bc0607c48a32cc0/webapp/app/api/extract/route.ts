@@ -45,6 +45,11 @@ export async function POST(req: NextRequest) {
       extractedData.materialType = deriveMaterialType(extractedData.specifications);
     }
 
+    // Step 5: Derive shape from size designation if GPT-4o didn't catch it
+    if (!extractedData.shape && extractedData.sizes) {
+      extractedData.shape = deriveShape(extractedData.sizes, fullText);
+    }
+
     return NextResponse.json({
       success: true,
       extractionMethod,
@@ -74,6 +79,41 @@ function deriveMaterialType(specs: string[]): string {
   }
   if (specStr.includes('A53')) return 'A53';
   if (specStr.includes('A513')) return 'A513';
+  return '';
+}
+
+// ─── Derive shape from size designation and text ───
+
+function deriveShape(sizes: string[], fullText: string): string {
+  const text = fullText.toUpperCase();
+  const sizeStr = sizes.join(' ').toUpperCase();
+
+  // Check size designation patterns
+  if (sizeStr.match(/^W\d/)) return 'I Beam';
+  if (sizeStr.match(/^HP\d/)) return 'H Beam';
+  if (sizeStr.match(/^C\d/) || sizeStr.match(/^MC\d/)) return 'Channel';
+  if (sizeStr.match(/^L\d/)) return 'Angle';
+  if (sizeStr.match(/^HSS/) || sizeStr.match(/^\d+\s*X\s*\d+\s*X\s*\d/)) {
+    if (sizeStr.includes('ROUND') || sizeStr.match(/HSS\s*\d+\s*X\s*[\d.]+\s*WALL/i)) return 'Round';
+    return 'Square';
+  }
+  if (sizeStr.match(/^PL\s/) || text.match(/\bPLATE\b/)) return 'Plate';
+  if (text.match(/\bFLAT\s*BAR\b/)) return 'Flat Bar';
+  if (text.match(/\bPIPE\b/) || sizeStr.match(/^NPS/) || sizeStr.match(/^(?:NPS|SCH)/)) return 'Pipe';
+  if (text.match(/\bCOIL\b/)) return 'Coil';
+  if (text.match(/\bROUND\b/) || sizeStr.match(/^RD/) || sizeStr.match(/BAR\s*RD/i)) return 'Round';
+
+  // Check raw text for shape keywords
+  if (text.match(/\bI\s*BEAM\b/) || text.match(/\bWIDE\s*FLANGE\b/)) return 'I Beam';
+  if (text.match(/\bH\s*BEAM\b/)) return 'H Beam';
+  if (text.match(/\bCHANNEL\b/)) return 'Channel';
+  if (text.match(/\bPLATE\b/)) return 'Plate';
+  if (text.match(/\bFLAT\s*BAR\b/)) return 'Flat Bar';
+  if (text.match(/\bPIPE\b/)) return 'Pipe';
+  if (text.match(/\bCOIL\b/)) return 'Coil';
+  if (text.match(/\bROUND\b/) && text.match(/\bBAR\b/)) return 'Round';
+  if (text.match(/\bSQUARE\b/) && text.match(/\bTUBE\b/)) return 'Square';
+
   return '';
 }
 
@@ -198,14 +238,27 @@ CRITICAL FIELDS (in priority order):
    - If a number is labeled "WO", "Work Order", "Order", "Lot" — that is NOT a heat number.
    - Only extract numbers that are clearly labeled as "Heat", "Heat No", "Heat Number", or appear as the identifier in a chemistry table row.
 2. Specification — e.g. ASTM A588, A709, A500, A36, A992, A53. Do NOT guess. If unclear, leave blank.
-3. Size/Type — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2. Treat the full designation as one field.
-4. Grade — e.g. Grade 50W, Grade B, Grade 36. If combined with spec (e.g. "A588 Grade B"), separate them.
-5. Chemistry (per heat) — C, Mn, P, S, Si, Cu, Ni, Cr, V, Mo, Nb, CE if present
-6. Country of Origin — USA, Canada, etc. Look for "Buy America", "Build America", "Produced in USA", "Country of Origin"
-7. Mechanical Properties — Yield, Tensile, Elongation if present
-8. CVN (Charpy V-Notch) — Extract ALL Charpy V-Notch impact test data if present. This is VERY important. Include temperature, energy values (ft-lbs or Joules), and any acceptance criteria.
-9. Killed Fine Grain Practice — Look for "fully killed", "killed steel", "fine grain practice", "fine-grain", "ASTM A6". Report true/false based on whether the MTR states this.
-10. No Weld Repair — Look for "no weld repair", "no repair welding", "no welding repair". Report true/false based on whether the MTR states this.
+3. Size/Designation — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2. Treat the full designation as one field.
+4. Shape — The physical form/category of the steel product. Use EXACTLY one of these values:
+   - "Plate" — flat rolled sheet/plate, specified by thickness x width x length (e.g. 0.7500" x 96" x 240")
+   - "I Beam" — wide flange beams, W-shapes (e.g. W24x76, W12x26)
+   - "H Beam" — H-piles or HP shapes (e.g. HP10x42, HP12x53)
+   - "Flat Bar" — flat bar stock, specified by thickness x width
+   - "Channel" — C-shapes or MC-shapes (e.g. C8x18.75, MC10x8.4)
+   - "Angle" — L-shapes (e.g. L4x4x1/2, L6x4x5/8)
+   - "Pipe" — round pipe or tube (e.g. NPS 6, Pipe 4" STD)
+   - "Coil" — coiled steel
+   - "Round" — round bar stock (e.g. 1-1/2" RD BAR)
+   - "Square" — square HSS/tube (e.g. HSS10SQx375, TS4x4x1/4)
+   - "HSS Rectangle" — rectangular HSS/tube (e.g. HSS8x4x1/4)
+   Determine shape from the size designation and any descriptive text. If unclear, leave blank.
+5. Grade — e.g. Grade 50W, Grade B, Grade 36. If combined with spec (e.g. "A588 Grade B"), separate them.
+6. Chemistry (per heat) — C, Mn, P, S, Si, Cu, Ni, Cr, V, Mo, Nb, CE if present
+7. Country of Origin — USA, Canada, etc. Look for "Buy America", "Build America", "Produced in USA", "Country of Origin"
+8. Mechanical Properties — Yield, Tensile, Elongation if present
+9. CVN (Charpy V-Notch) — Extract ALL Charpy V-Notch impact test data if present. This is VERY important. Include temperature, energy values (ft-lbs or Joules), and any acceptance criteria.
+10. Killed Fine Grain Practice — Look for "fully killed", "killed steel", "fine grain practice", "fine-grain", "ASTM A6". Report true/false based on whether the MTR states this.
+11. No Weld Repair — Look for "no weld repair", "no repair welding", "no welding repair". Report true/false based on whether the MTR states this.
 
 Return a JSON object with this structure:
 {
@@ -213,6 +266,7 @@ Return a JSON object with this structure:
   "specifications": ["A709"],
   "grade": "50W",
   "sizes": ["W24x76"],
+  "shape": "I Beam",
   "materialType": "",
   "countryOfOrigin": "USA",
   "chemistryByHeat": {
@@ -235,6 +289,7 @@ RULES:
 - If OCR misread a value (e.g. "AS88" should be "A588"), correct it.
 - Extract ALL heat numbers — do not cap at 2.
 - Do NOT confuse heat numbers with work order (WO) numbers, lot numbers, or order numbers.
+- Shape must be one of: Plate, I Beam, H Beam, Flat Bar, Channel, Angle, Pipe, Coil, Round, Square, HSS Rectangle. If none match, leave blank.
 - killedFineGrainPractice: true if the MTR states "fully killed", "killed steel", or "fine grain practice". false if not stated.
 - noWeldRepair: true if the MTR states "no weld repair" or similar. false if not stated.
 - CVN is critical — if present, extract all data including temperature, energy values, and acceptance criteria.
