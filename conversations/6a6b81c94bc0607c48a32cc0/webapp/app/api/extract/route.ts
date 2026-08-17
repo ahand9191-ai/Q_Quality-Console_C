@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
     // Step 3: GPT-4o — structured field extraction from the text
     const extractedData = await callGPT4o(fullText, file.name);
 
+    // Step 4: Derive material type from spec
+    if (extractedData.specifications) {
+      extractedData.materialType = deriveMaterialType(extractedData.specifications);
+    }
+
     return NextResponse.json({
       success: true,
       extractionMethod,
@@ -53,32 +58,46 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// ─── Derive material type from specification ───
+
+function deriveMaterialType(specs: string[]): string {
+  const specStr = specs.join(' ').toUpperCase();
+  
+  if (specStr.includes('A588') || specStr.includes('A709') || specStr.includes('709')) {
+    return 'Weathering Steel';
+  }
+  if (specStr.includes('A500')) return 'A500';
+  if (specStr.includes('A36') || specStr.includes('SA36')) return 'A36';
+  if (specStr.includes('A992')) return 'A992';
+  if (specStr.includes('L304') || specStr.includes('304') || specStr.includes('S304') || specStr.includes('STAINLESS')) {
+    return 'Stainless Steel';
+  }
+  if (specStr.includes('A53')) return 'A53';
+  if (specStr.includes('A513')) return 'A513';
+  return '';
+}
+
 // ─── Fast PDF text extraction (no AWS needed) ───
 
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
   const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
   const pageCount = pdfDoc.getPageCount();
 
-  // pdf-lib doesn't extract text directly — use the raw text from the PDF stream
-  // We'll parse the PDF content streams for text operators
   const decoder = new TextDecoder('latin1');
   const raw = decoder.decode(bytes);
 
-  // Extract text between BT and ET markers (PDF text objects)
   const textChunks: string[] = [];
   const btEtRegex = /BT\s+([\s\S]*?)\s+ET/g;
   let match;
 
   while ((match = btEtRegex.exec(raw)) !== null) {
     const textObj = match[1];
-    // Extract text from Tj and TJ operators
     const tjRegex = /\(([^)]*)\)\s*Tj/g;
     const tjMatch = tjRegex.exec(textObj);
     if (tjMatch) {
       textChunks.push(tjMatch[1]);
     }
 
-    // Also handle array TJ operators
     const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
     const tjArrayMatch = tjArrayRegex.exec(textObj);
     if (tjArrayMatch) {
@@ -92,7 +111,6 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
 
   let text = textChunks.join('\n');
 
-  // If we didn't get meaningful text from raw parsing, try pdf-parse
   if (text.trim().length < 50) {
     const pdfParse = require('pdf-parse');
     const data = await pdfParse(bytes);
@@ -118,7 +136,6 @@ async function callTextract(bytes: Uint8Array): Promise<string> {
     credentials: { accessKeyId, secretAccessKey },
   });
 
-  // Split multi-page PDFs — DetectDocumentText only supports 1 page at a time
   const pageBytes = await splitPdfPages(bytes);
   const allText: string[] = [];
 
@@ -180,15 +197,15 @@ CRITICAL FIELDS (in priority order):
    - Heat numbers usually appear near or above the chemistry table rows.
    - If a number is labeled "WO", "Work Order", "Order", "Lot" — that is NOT a heat number.
    - Only extract numbers that are clearly labeled as "Heat", "Heat No", "Heat Number", or appear as the identifier in a chemistry table row.
-2. Specification — e.g. ASTM A588, A709, A500, A36, A992. Do NOT guess. If unclear, leave blank.
+2. Specification — e.g. ASTM A588, A709, A500, A36, A992, A53. Do NOT guess. If unclear, leave blank.
 3. Size/Type — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2. Treat the full designation as one field.
 4. Grade — e.g. Grade 50W, Grade B, Grade 36. If combined with spec (e.g. "A588 Grade B"), separate them.
 5. Chemistry (per heat) — C, Mn, P, S, Si, Cu, Ni, Cr, V, Mo, Nb, CE if present
 6. Country of Origin — USA, Canada, etc. Look for "Buy America", "Build America", "Produced in USA", "Country of Origin"
-7. Mechanical Properties — Yield, Tensile, Elongation, CVN (Charpy V-Notch) if present
-8. Purchase Order (PO) Number
-9. Quantity
-10. Material Type — beam, channel, angle, plate, HSS, pipe, etc. Do NOT default to beam. Leave blank if unknown.
+7. Mechanical Properties — Yield, Tensile, Elongation if present
+8. CVN (Charpy V-Notch) — Extract ALL Charpy V-Notch impact test data if present. This is VERY important. Include temperature, energy values (ft-lbs or Joules), and any acceptance criteria.
+9. Killed Fine Grain Practice — Look for "fully killed", "killed steel", "fine grain practice", "fine-grain", "ASTM A6". Report true/false based on whether the MTR states this.
+10. No Weld Repair — Look for "no weld repair", "no repair welding", "no welding repair". Report true/false based on whether the MTR states this.
 
 Return a JSON object with this structure:
 {
@@ -196,15 +213,16 @@ Return a JSON object with this structure:
   "specifications": ["A709"],
   "grade": "50W",
   "sizes": ["W24x76"],
-  "materialType": "beam",
+  "materialType": "",
   "countryOfOrigin": "USA",
-  "poNumber": "1867667",
-  "quantity": "",
   "chemistryByHeat": {
     "627779": {"C": 0.09, "Mn": 1.25, "P": 0.017, "S": 0.015, "Si": 0.27, "Cu": 0.28, "Ni": 0.31, "Cr": 0.46, "V": 0.04, "Mo": 0.04, "Nb": 0.002, "CE": 0.44}
   },
   "mechanicalProperties": {
-    "627779": {"yield": "", "tensile": "", "elongation": "", "cvn": ""}
+    "627779": {"yield": "", "tensile": "", "elongation": ""}
+  },
+  "cvnByHeat": {
+    "627779": {"temperature": "-40F", "energy_ft_lbs": "12, 15, 14", "acceptance": "15J avg"}
   },
   "killedFineGrainPractice": true,
   "noWeldRepair": true,
@@ -217,8 +235,9 @@ RULES:
 - If OCR misread a value (e.g. "AS88" should be "A588"), correct it.
 - Extract ALL heat numbers — do not cap at 2.
 - Do NOT confuse heat numbers with work order (WO) numbers, lot numbers, or order numbers.
-- killedFineGrainPractice: true if the MTR states "fully killed", "killed steel", or "fine grain practice"
-- noWeldRepair: true if the MTR states "no weld repair" or similar
+- killedFineGrainPractice: true if the MTR states "fully killed", "killed steel", or "fine grain practice". false if not stated.
+- noWeldRepair: true if the MTR states "no weld repair" or similar. false if not stated.
+- CVN is critical — if present, extract all data including temperature, energy values, and acceptance criteria.
 - If the document is not an MTR, return {"extractionConfidence": "not_an_mtr"}.
 - Return ONLY valid JSON, no markdown.`;
 
