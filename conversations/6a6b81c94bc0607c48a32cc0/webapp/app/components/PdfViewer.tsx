@@ -94,7 +94,7 @@ export default function PdfViewer({ file, highlights, stamp, onApprove, onReject
       const text = item.str.toUpperCase().trim();
 
       let matched = false;
-      for (const hl of Array.from(highlightSet)) {
+      for (const hl of highlightSet) {
         if (text.includes(hl) || hl.includes(text)) {
           if (text.length >= 2 && hl.length >= 2) {
             matched = true;

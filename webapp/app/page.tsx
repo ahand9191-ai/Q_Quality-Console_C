@@ -584,7 +584,7 @@ function ChemistryTable({ data, limits }: { data: Record<string, Record<string, 
                     </div>
                   )}
                 </th>
-              )}
+              ))}
             </tr>
           </thead>
           <tbody>
