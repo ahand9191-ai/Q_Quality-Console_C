@@ -90,13 +90,72 @@ export default function DrawingInspection() {
     if (!data) return;
     setGenerating(true);
     try {
-      const res = await fetch('/api/generate-qc-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ drawingData: data }),
-      });
-      if (!res.ok) throw new Error('Report generation failed');
-      const blob = await res.blob();
+      // Fetch the blank template from public directory
+      const templateRes = await fetch('/QC_Report_blank.xlsx');
+      const templateBuf = await templateRes.arrayBuffer();
+      
+      // Read with SheetJS
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(templateBuf, { type: 'array' });
+      
+      // Helper to set cell value
+      const setCell = (sheetName: string, addr: string, value: string) => {
+        const ws = wb.Sheets[sheetName];
+        if (ws) {
+          if (!ws[addr]) ws[addr] = { t: 's', v: value };
+          else ws[addr].v = value;
+        }
+      };
+      
+      // Fill Pre-Fab sheet
+      setCell('Pre-Fab', 'E1', data.jobNumber || '');
+      setCell('Pre-Fab', 'E2', data.jobName || '');
+      setCell('Pre-Fab', 'Q1', data.structureType || '');
+      setCell('Pre-Fab', 'Q2', data.material || '');
+      
+      // Fill Assembly QC Check sheet
+      setCell('Assembly -QC Check', 'E1', data.jobNumber || '');
+      setCell('Assembly -QC Check', 'E2', data.jobName || '');
+      setCell('Assembly -QC Check', 'Q1', data.structureType || '');
+      setCell('Assembly -QC Check', 'Q2', data.weldingCode || '');
+      
+      // Fill print dimensions
+      const d = data.dimensions || {};
+      if (d.bridgeLength) setCell('Assembly -QC Check', 'I6', d.bridgeLength);
+      if (d.camber) setCell('Assembly -QC Check', 'I7', d.camber);
+      if (d.railHeight) setCell('Assembly -QC Check', 'I8', d.railHeight);
+      if (d.postBlockSpacing) setCell('Assembly -QC Check', 'I10', d.postBlockSpacing);
+      if (d.diaphragmSpacing) setCell('Assembly -QC Check', 'I11', d.diaphragmSpacing);
+      if (d.deckWidth) setCell('Assembly -QC Check', 'I12', d.deckWidth);
+      if (d.sideDamHeight) setCell('Assembly -QC Check', 'I13', d.sideDamHeight);
+      if (d.endDamHeight) setCell('Assembly -QC Check', 'I14', d.endDamHeight);
+      
+      // Fill Finishing sheet
+      setCell('Finishing', 'E1', data.jobNumber || '');
+      setCell('Finishing', 'E2', data.jobName || '');
+      
+      // Blasting and coating from material type
+      const mat = (data.material || '').toLowerCase();
+      if (mat.includes('weathering')) {
+        setCell('Finishing', 'E5', 'SSPC-SP7');
+        setCell('Finishing', 'E6', 'N/A');
+      } else if (mat.includes('galvan')) {
+        setCell('Finishing', 'E5', 'SSPC-SP6');
+        setCell('Finishing', 'E6', 'Galvanized');
+      } else if (mat.includes('painted')) {
+        setCell('Finishing', 'E5', 'SSPC-SP7');
+        setCell('Finishing', 'E6', 'Painted');
+      }
+      
+      // Plaque info
+      const p = data.plaque || {};
+      if (p.designLoad) setCell('Finishing', 'I10', p.designLoad);
+      if (p.loadLimit) setCell('Finishing', 'I11', p.loadLimit);
+      if (data.bridgeId || p.bridgeId) setCell('Finishing', 'E12', data.bridgeId || p.bridgeId);
+      
+      // Generate the Excel file
+      const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -104,7 +163,7 @@ export default function DrawingInspection() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      setError(err instanceof Error ? err.message : 'Excel generation failed');
     } finally {
       setGenerating(false);
     }
