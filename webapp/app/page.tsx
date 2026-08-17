@@ -1,6 +1,26 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+const PdfViewer = dynamic(() => import('./components/PdfViewer'), { ssr: false });
+
+interface StampConfig {
+  name: string;
+  title: string;
+  company: string;
+  color: 'green' | 'blue' | 'red' | 'black';
+  shape: 'circular' | 'rectangular';
+}
+
+interface CodeLimits {
+  name: string;
+  elements: Record<string, { max?: number; min?: number; label: string; desc: string }>;
+  ceMax: number;
+  ceFormula: string;
+  ceDesc: string;
+  notes: string;
+}
 
 interface ExtractedData {
   heatNumbers: string[];
@@ -10,6 +30,7 @@ interface ExtractedData {
   shape: string;
   materialType: string;
   countryOfOrigin: string;
+  psl?: string;
   chemistryByHeat: Record<string, Record<string, number | string>>;
   mechanicalProperties: Record<string, Record<string, string>>;
   cvnByHeat: Record<string, Record<string, string>>;
@@ -24,8 +45,17 @@ interface ExtractResponse {
   error?: string;
   extractionMethod?: string;
   textLength?: number;
+  code?: string;
+  codeLimits?: CodeLimits;
   extractedData?: ExtractedData;
 }
+
+const CODES = [
+  { id: 'AWS D1.1', label: 'AWS D1.1', sub: 'Structural Welding Code (Steel)' },
+  { id: 'AWS D1.5', label: 'AWS D1.5', sub: 'Bridge Welding Code' },
+  { id: 'ASME', label: 'ASME BPVC', sub: 'Boiler & Pressure Vessel Code' },
+  { id: 'API', label: 'API 5L', sub: 'Pipeline Steel (American Petroleum Institute)' },
+];
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -34,6 +64,19 @@ export default function Home() {
   const [result, setResult] = useState<ExtractedData | null>(null);
   const [method, setMethod] = useState<string>('');
   const [dragging, setDragging] = useState(false);
+  const [selectedCode, setSelectedCode] = useState<string>('AWS D1.5');
+  const [codeLimits, setCodeLimits] = useState<CodeLimits | null>(null);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [stamp, setStamp] = useState<StampConfig | null>(null);
+  const [showStampDesigner, setShowStampDesigner] = useState(false);
+
+  // Load saved stamp from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('qc_stamp');
+    if (saved) {
+      try { setStamp(JSON.parse(saved)); } catch {}
+    }
+  }, []);
 
   const handleFile = useCallback((selectedFile: File | null) => {
     if (!selectedFile) return;
@@ -49,8 +92,7 @@ export default function Home() {
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    handleFile(droppedFile);
+    handleFile(e.dataTransfer.files[0]);
   }, [handleFile]);
 
   const handleSubmit = async () => {
@@ -62,6 +104,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('code', selectedCode);
 
       const response = await fetch('/api/extract', {
         method: 'POST',
@@ -75,6 +118,8 @@ export default function Home() {
       } else {
         setResult(data.extractedData || null);
         setMethod(data.extractionMethod || '');
+        setCodeLimits(data.codeLimits || null);
+        setStep(2);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error during extraction');
@@ -88,44 +133,200 @@ export default function Home() {
     setResult(null);
     setError(null);
     setMethod('');
+    setStep(1);
   };
 
-  if (loading) {
+  // Build highlight strings from extracted data
+  const getHighlights = (): string[] => {
+    if (!result) return [];
+    const highlights: string[] = [];
+    highlights.push(...(result.heatNumbers || []));
+    highlights.push(...(result.specifications || []));
+    if (result.grade) highlights.push(result.grade);
+    if (result.shape) highlights.push(result.shape);
+    if (result.countryOfOrigin) highlights.push(result.countryOfOrigin);
+    if (result.killedFineGrainPractice) { highlights.push('killed'); highlights.push('fine grain'); }
+    if (result.noWeldRepair) { highlights.push('no weld repair'); highlights.push('weld repair'); }
+    if (result.cvnByHeat) {
+      Object.values(result.cvnByHeat).forEach(cvn => {
+        if (cvn.temperature) highlights.push(cvn.temperature);
+      });
+    }
+    // Chemistry values
+    if (result.chemistryByHeat) {
+      Object.values(result.chemistryByHeat).forEach(chem => {
+        Object.entries(chem).forEach(([key, val]) => {
+          if (val !== '' && val !== null && val !== undefined) {
+            highlights.push(String(val));
+          }
+        });
+      });
+    }
+    return highlights;
+  };
+
+  const saveStamp = (config: StampConfig) => {
+    setStamp(config);
+    localStorage.setItem('qc_stamp', JSON.stringify(config));
+    setShowStampDesigner(false);
+  };
+
+  // ─── Step 1: Upload + Code Selection ───
+  if (step === 1 && !loading) {
     return (
       <div className="container">
         <div className="header">
           <h1>Q.C. Quality Console</h1>
-          <div className="subtitle">MTR Verification — Domestic Steel Compliance</div>
+          <div className="subtitle">MTR Verification — Multi-Code Compliance</div>
         </div>
-        <div className="processing">
-          <div className="spinner" />
-          <h2>Processing MTR...</h2>
-          <div className="step">Extracting text → GPT-4o field mapping</div>
+
+        {/* Code Selector */}
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontFamily: 'Georgia, serif', marginBottom: 8 }}>Select Governing Code / Standard</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+            {CODES.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setSelectedCode(c.id)}
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 8,
+                  border: selectedCode === c.id ? '2px solid var(--accent)' : '1px solid var(--border)',
+                  background: selectedCode === c.id ? 'rgba(60, 90, 140, 0.06)' : 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s',
+                  fontFamily: 'Georgia, serif',
+                }}
+              >
+                <div style={{ fontWeight: 'bold', fontSize: 15, color: selectedCode === c.id ? 'var(--accent)' : 'var(--fg)' }}>
+                  {c.label}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontFamily: '-apple-system, system-ui, sans-serif' }}>
+                  {c.sub}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={`upload-zone ${dragging ? 'dragging' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => document.getElementById('file-input')?.click()}
+        >
+          <input
+            id="file-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            style={{ display: 'none' }}
+            onChange={(e) => handleFile(e.target.files?.[0] || null)}
+          />
+          {file ? (
+            <>
+              <div className="icon">📄</div>
+              <h2>{file.name}</h2>
+              <p>{(file.size / 1024 / 1024).toFixed(2)} MB — Click to change</p>
+            </>
+          ) : (
+            <>
+              <div className="icon">📄</div>
+              <h2>Drop MTR PDF Here</h2>
+              <p>or click to browse — PDF files only</p>
+            </>
+          )}
+        </div>
+
+        {file && (
+          <div style={{ textAlign: 'center', marginTop: 24 }}>
+            <button className="btn" onClick={handleSubmit} style={{ fontSize: 15, padding: '12px 32px' }}>
+              Extract MTR Data →
+            </button>
+          </div>
+        )}
+
+        {/* Stamp config status */}
+        {stamp ? (
+          <div style={{ marginTop: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+            QC Stamp configured: <strong>{stamp.name}</strong> · <button onClick={() => setShowStampDesigner(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>Edit Stamp</button>
+          </div>
+        ) : (
+          <div style={{ marginTop: 20, textAlign: 'center' }}>
+            <button onClick={() => setShowStampDesigner(true)} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 6, padding: '8px 20px', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
+              ✎ Create your QC approval stamp
+            </button>
+          </div>
+        )}
+
+        {showStampDesigner && (
+          <StampDesignerModal initial={stamp} onSave={saveStamp} onClose={() => setShowStampDesigner(false)} />
+        )}
+
+        <div style={{ marginTop: 32, fontSize: 12, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif', textAlign: 'center' }}>
+          <p>Workflow: Upload → Extraction & Chemistry Verification → Document Approval with Stamp</p>
         </div>
       </div>
     );
   }
 
-  if (result) {
+  // ─── Loading ───
+  if (loading) {
     return (
       <div className="container">
         <div className="header">
           <h1>Q.C. Quality Console</h1>
-          <div className="subtitle">MTR Verification — Domestic Steel Compliance</div>
+          <div className="subtitle">MTR Verification — {selectedCode}</div>
+        </div>
+        <div className="processing">
+          <div className="spinner" />
+          <h2>Processing MTR...</h2>
+          <div className="step">Extracting text → GPT-4o field mapping → {selectedCode} chemistry verification</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Error ───
+  if (error && step === 1) {
+    return (
+      <div className="container">
+        <div className="header">
+          <h1>Q.C. Quality Console</h1>
+        </div>
+        <div className="error">
+          <h3>Extraction Error</h3>
+          <p>{error}</p>
+          <button className="btn" style={{ marginTop: 16 }} onClick={reset}>Try Again</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 2: Review & Chemistry Verification ───
+  if (step === 2 && result) {
+    return (
+      <div className="container">
+        <div className="header">
+          <h1>Q.C. Quality Console</h1>
+          <div className="subtitle">MTR Verification — {codeLimits?.name || selectedCode}</div>
         </div>
 
         <div className="results">
           <div className="results-header">
-            <h2>Extraction Results</h2>
+            <h2>Step 2: Extraction & Chemistry Verification</h2>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {method && (
-                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
-                  Method: {method === 'text' ? 'Direct text extraction' : 'AWS Textract OCR'}
-                </span>
-              )}
-              <button className="btn btn-outline" onClick={reset}>Upload Another</button>
+              <button className="btn btn-outline" onClick={() => setStep(1)} style={{ fontSize: 12 }}>← Back</button>
+              <button className="btn" onClick={() => setStep(3)} style={{ fontSize: 12, padding: '8px 20px' }}>Proceed to Approval →</button>
             </div>
           </div>
+
+          {method && (
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, fontFamily: '-apple-system, system-ui, sans-serif' }}>
+              Extraction method: {method === 'text' ? 'Direct text extraction' : 'AWS Textract OCR'}
+            </div>
+          )}
 
           {/* Compliance Checks */}
           <div className="data-card">
@@ -133,7 +334,15 @@ export default function Home() {
             <div className="compliance-grid">
               <ComplianceCheck label="Killed Fine Grain Practice" passed={result.killedFineGrainPractice} />
               <ComplianceCheck label="No Weld Repair" passed={result.noWeldRepair} />
-              <ComplianceCheck label="Country of Origin (Domestic)" passed={result.countryOfOrigin?.toLowerCase().includes('usa') || result.countryOfOrigin?.toLowerCase().includes('america')} />
+              {selectedCode.startsWith('AWS') && (
+                <ComplianceCheck
+                  label="Country of Origin (Domestic)"
+                  passed={result.countryOfOrigin?.toLowerCase().includes('usa') || result.countryOfOrigin?.toLowerCase().includes('america')}
+                />
+              )}
+              {selectedCode === 'API' && result.psl && (
+                <ComplianceCheck label={`PSL Designation (${result.psl})`} passed={true} />
+              )}
             </div>
           </div>
 
@@ -148,13 +357,14 @@ export default function Home() {
               <FieldRow label="Size / Designation" value={result.sizes?.join(', ') || ''} critical />
               <FieldRow label="Material Type" value={result.materialType || ''} critical />
               <FieldRow label="Country of Origin" value={result.countryOfOrigin || ''} critical />
+              {result.psl && <FieldRow label="PSL" value={result.psl} critical />}
               <FieldRow label="Extraction Confidence" value={result.extractionConfidence || 'unknown'} />
             </div>
           </div>
 
-          {/* Chemistry */}
-          {result.chemistryByHeat && Object.keys(result.chemistryByHeat).length > 0 && (
-            <ChemistryTable data={result.chemistryByHeat} />
+          {/* Chemistry with code-specific limits */}
+          {result.chemistryByHeat && Object.keys(result.chemistryByHeat).length > 0 && codeLimits && (
+            <ChemistryTable data={result.chemistryByHeat} limits={codeLimits} />
           )}
 
           {/* Mechanical Properties */}
@@ -186,7 +396,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* CVN / Charpy V-Notch */}
+          {/* CVN */}
           {result.cvnByHeat && Object.keys(result.cvnByHeat).length > 0 && (
             <div className="data-card">
               <h3>CVN (Charpy V-Notch) Impact Tests</h3>
@@ -219,9 +429,82 @@ export default function Home() {
           {result.notes && (
             <div className="data-card">
               <h3>Notes</h3>
-              <p style={{ fontSize: 14, fontFamily: '-apple-system, system-ui, sans-serif' }}>
-                {result.notes}
+              <p style={{ fontSize: 14, fontFamily: '-apple-system, system-ui, sans-serif' }}>{result.notes}</p>
+            </div>
+          )}
+
+          {/* Proceed button */}
+          <div style={{ textAlign: 'center', marginTop: 24 }}>
+            <button className="btn" onClick={() => setStep(3)} style={{ fontSize: 15, padding: '12px 32px' }}>
+              Proceed to Document Approval →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 3: Document Approval ───
+  if (step === 3 && result && file) {
+    return (
+      <div className="container">
+        <div className="header">
+          <h1>Q.C. Quality Console</h1>
+          <div className="subtitle">Step 3: Document Approval — {codeLimits?.name || selectedCode}</div>
+        </div>
+
+        <div className="results">
+          <div className="results-header">
+            <h2>MTR Document Review & Approval</h2>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn btn-outline" onClick={() => setStep(2)} style={{ fontSize: 12 }}>← Back to Chemistry</button>
+              <button className="btn btn-outline" onClick={reset} style={{ fontSize: 12 }}>New MTR</button>
+            </div>
+          </div>
+
+          {/* Stamp status */}
+          {!stamp && (
+            <div className="data-card" style={{ borderColor: 'rgba(204, 136, 0, 0.5)' }}>
+              <h3 style={{ color: '#a87000' }}>⚠ No QC Stamp Configured</h3>
+              <p style={{ fontSize: 13, fontFamily: '-apple-system, system-ui, sans-serif', marginBottom: 12 }}>
+                Create your personal approval stamp before approving this MTR. Your stamp will be applied to the document as proof of QC review.
               </p>
+              <button className="btn" onClick={() => setShowStampDesigner(true)}>Create Stamp</button>
+            </div>
+          )}
+
+          {showStampDesigner && (
+            <StampDesignerModal initial={stamp} onSave={saveStamp} onClose={() => setShowStampDesigner(false)} />
+          )}
+
+          {/* PDF Viewer with highlights */}
+          {stamp && (
+            <div className="data-card">
+              <PdfViewer
+                file={file}
+                highlights={getHighlights()}
+                stamp={stamp}
+                onApprove={() => {
+                  console.log('MTR approved');
+                }}
+                onReject={() => {
+                  console.log('MTR rejected');
+                }}
+              />
+            </div>
+          )}
+
+          {/* Code info */}
+          {codeLimits && (
+            <div className="data-card">
+              <h3>{codeLimits.name} — Summary</h3>
+              <p style={{ fontSize: 13, fontFamily: '-apple-system, system-ui, sans-serif', marginBottom: 8 }}>
+                {codeLimits.notes}
+              </p>
+              <div style={{ fontSize: 12, fontFamily: '-apple-system, system-ui, sans-serif', color: 'var(--muted)' }}>
+                <p><strong>CE Formula:</strong> {codeLimits.ceFormula}</p>
+                <p><strong>CE Limit:</strong> {codeLimits.ceDesc}</p>
+              </div>
             </div>
           )}
         </div>
@@ -229,77 +512,10 @@ export default function Home() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="container">
-        <div className="header">
-          <h1>Q.C. Quality Console</h1>
-          <div className="subtitle">MTR Verification — Domestic Steel Compliance</div>
-        </div>
-        <div className="error">
-          <h3>Extraction Error</h3>
-          <p>{error}</p>
-          <button className="btn" style={{ marginTop: 16 }} onClick={reset}>Try Again</button>
-        </div>
-      </div>
-    );
-  }
-
-  // Upload view
-  return (
-    <div className="container">
-      <div className="header">
-        <h1>Q.C. Quality Console</h1>
-        <div className="subtitle">MTR Verification — Domestic Steel Compliance</div>
-      </div>
-
-      <div
-        className={`upload-zone ${dragging ? 'dragging' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => document.getElementById('file-input')?.click()}
-      >
-        <input
-          id="file-input"
-          type="file"
-          accept=".pdf,application/pdf"
-          style={{ display: 'none' }}
-          onChange={(e) => handleFile(e.target.files?.[0] || null)}
-        />
-        {file ? (
-          <>
-            <div className="icon">📄</div>
-            <h2>{file.name}</h2>
-            <p>{(file.size / 1024 / 1024).toFixed(2)} MB — Click to change</p>
-          </>
-        ) : (
-          <>
-            <div className="icon">📄</div>
-            <h2>Drop MTR PDF Here</h2>
-            <p>or click to browse — PDF files only</p>
-          </>
-        )}
-      </div>
-
-      {file && (
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <button className="btn" onClick={handleSubmit} style={{ fontSize: 15, padding: '12px 32px' }}>
-            Extract MTR Data →
-          </button>
-        </div>
-      )}
-
-      <div style={{ marginTop: 40, fontSize: 12, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
-        <p style={{ marginBottom: 6 }}>
-          <strong>Pipeline:</strong> PDF text extraction → GPT-4o (field mapping + chemistry + CVN + compliance)
-        </p>
-        <p>Verifies against ASTM A588/A709 Grade 50W, AWS D1.1/D1.5, and Buy America requirements.</p>
-      </div>
-    </div>
-  );
+  return null;
 }
 
+// ─── Field Row Component ───
 function FieldRow({ label, value, critical }: { label: string; value: string; critical?: boolean }) {
   return (
     <div className="field-row">
@@ -314,6 +530,7 @@ function FieldRow({ label, value, critical }: { label: string; value: string; cr
   );
 }
 
+// ─── Compliance Check Component ───
 function ComplianceCheck({ label, passed }: { label: string; passed: boolean }) {
   return (
     <div className={`compliance-item ${passed ? 'pass' : 'fail'}`}>
@@ -326,36 +543,48 @@ function ComplianceCheck({ label, passed }: { label: string; passed: boolean }) 
   );
 }
 
-function ChemistryTable({ data }: { data: Record<string, Record<string, number | string>> }) {
-  const elements = ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'CE'];
+// ─── Enhanced Chemistry Table with Code-Specific Limits ───
+function ChemistryTable({ data, limits }: { data: Record<string, Record<string, number | string>>, limits: CodeLimits }) {
+  const allElements = ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'Ti', 'CE'];
   const heats = Object.keys(data);
+  const elements = allElements.filter(el => heats.some(h => data[h]?.[el] !== undefined && data[h]?.[el] !== ''));
 
-  const limits: Record<string, { max: number; label: string }> = {
-    C: { max: 0.12, label: '≤ 0.12% (D1.5)' },
-    Mn: { max: 1.25, label: '≤ 1.25% (A709 Table 4)' },
-    P: { max: 0.04, label: '≤ 0.04%' },
-    S: { max: 0.05, label: '≤ 0.05%' },
-    CE: { max: 0.47, label: '≤ 0.47% (D1.1/D1.5)' },
-  };
-
-  const checkLimit = (el: string, value: number | string): 'pass' | 'fail' | 'none' => {
-    if (value === '' || value === null || value === undefined) return 'none';
+  const checkLimit = (el: string, value: number | string): { status: 'pass' | 'fail' | 'none'; info: string } => {
+    if (value === '' || value === null || value === undefined) return { status: 'none', info: '' };
     const numVal = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(numVal)) return 'none';
-    const limit = limits[el];
-    if (!limit) return 'pass';
-    return numVal <= limit.max ? 'pass' : 'fail';
+    if (isNaN(numVal)) return { status: 'none', info: '' };
+
+    const limit = limits.elements[el];
+    if (!limit) return { status: 'pass', info: '' };
+
+    let passed = true;
+    if (limit.max !== undefined && numVal > limit.max) passed = false;
+    if (limit.min !== undefined && numVal < limit.min) passed = false;
+
+    return {
+      status: passed ? 'pass' : 'fail',
+      info: limit.desc,
+    };
   };
 
   return (
     <div className="data-card">
-      <h3>Chemical Composition by Heat</h3>
+      <h3>Chemical Composition — {limits.name}</h3>
       <div style={{ overflowX: 'auto' }}>
         <table className="chem-table">
           <thead>
             <tr>
               <th>Heat #</th>
-              {elements.map(el => <th key={el}>{el}</th>)}
+              {elements.map(el => (
+                <th key={el}>
+                  {el}
+                  {limits.elements[el] && (
+                    <div style={{ fontSize: 9, fontWeight: 'normal', color: 'var(--muted)', marginTop: 2 }}>
+                      {limits.elements[el].label}
+                    </div>
+                  )}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -364,14 +593,16 @@ function ChemistryTable({ data }: { data: Record<string, Record<string, number |
                 <td>{heat}</td>
                 {elements.map(el => {
                   const val = data[heat]?.[el];
-                  const status = checkLimit(el, val ?? '');
+                  const { status, info } = checkLimit(el, val ?? '');
                   return (
-                    <td key={el}>
+                    <td key={el} title={info} style={{ cursor: info ? 'help' : 'default' }}>
                       {val !== undefined && val !== '' ? (
                         <>
                           {val}
                           {status === 'fail' && <span className="badge badge-fail" style={{ marginLeft: 4 }}>FAIL</span>}
-                          {status === 'pass' && limits[el] && <span className="badge badge-pass" style={{ marginLeft: 4 }}>✓</span>}
+                          {status === 'pass' && limits.elements[el] && (
+                            <span className="badge badge-pass" style={{ marginLeft: 4 }}>✓</span>
+                          )}
                         </>
                       ) : (
                         <span style={{ color: 'var(--muted)' }}>—</span>
@@ -384,8 +615,178 @@ function ChemistryTable({ data }: { data: Record<string, Record<string, number |
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
-        <p>Spec limits: C ≤ 0.12% (D1.5 Cl 5.4.2) | Mn ≤ 1.25% (A709 Table 4, flange ≤ 3/4&quot;) | P ≤ 0.04% | S ≤ 0.05% | CE ≤ 0.47% (D1.1/D1.5)</p>
+
+      {/* Detailed chemistry info */}
+      <div style={{ marginTop: 16, padding: 14, background: 'rgba(60, 90, 140, 0.03)', borderRadius: 6, border: '1px solid var(--border)' }}>
+        <h4 style={{ fontSize: 13, fontFamily: 'Georgia, serif', marginBottom: 10 }}>Chemistry Acceptability Guide</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+          {elements.map(el => {
+            const limit = limits.elements[el];
+            if (!limit) return null;
+            return (
+              <div key={el} style={{ fontSize: 11, fontFamily: '-apple-system, system-ui, sans-serif' }}>
+                <strong>{el}:</strong> <span style={{ color: 'var(--muted)' }}>{limit.label}</span>
+                <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 10 }}>{limit.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 11, fontFamily: '-apple-system, system-ui, sans-serif' }}>
+          <strong>CE Formula:</strong> {limits.ceFormula}
+          <div style={{ color: 'var(--muted)', marginTop: 4 }}>{limits.ceDesc}</div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>
+          {limits.notes}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stamp Designer Modal ───
+function StampDesignerModal({ initial, onSave, onClose }: { initial: StampConfig | null; onSave: (s: StampConfig) => void; onClose: () => void }) {
+  const [name, setName] = useState(initial?.name || '');
+  const [title, setTitle] = useState(initial?.title || '');
+  const [company, setCompany] = useState(initial?.company || '');
+  const [color, setColor] = useState<StampConfig['color']>(initial?.color || 'green');
+  const [shape, setShape] = useState<StampConfig['shape']>(initial?.shape || 'circular');
+
+  const stampColors: Record<string, string> = {
+    green: '#22a722', blue: '#2266cc', red: '#cc2222', black: '#333333',
+  };
+
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.4)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', zIndex: 100,
+    }} onClick={onClose}>
+      <div
+        style={{
+          background: 'var(--card)', borderRadius: 12, padding: 28,
+          maxWidth: 500, width: '90%', maxHeight: '90vh', overflowY: 'auto',
+          border: '1px solid var(--border)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 style={{ fontFamily: 'Georgia, serif', marginBottom: 4 }}>Create Your QC Approval Stamp</h3>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20, fontFamily: '-apple-system, system-ui, sans-serif' }}>
+          Your stamp will be applied to approved MTRs as proof of QC review.
+        </p>
+
+        {/* Preview */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          {shape === 'circular' ? (
+            <div style={{
+              width: 140, height: 140, borderRadius: '50%',
+              border: `3px solid ${stampColors[color]}`, display: 'flex',
+              flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', padding: 12, boxSizing: 'border-box',
+              background: `${stampColors[color]}08`, transform: 'rotate(-12deg)',
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: stampColors[color], fontFamily: 'Georgia, serif' }}>APPROVED</div>
+              <div style={{ fontSize: 9, color: stampColors[color], marginTop: 2 }}>{name || 'Your Name'}</div>
+              {title && <div style={{ fontSize: 7, color: stampColors[color], marginTop: 1 }}>{title}</div>}
+              <div style={{ fontSize: 8, color: stampColors[color], marginTop: 4 }}>{today}</div>
+              {company && <div style={{ fontSize: 7, color: stampColors[color], marginTop: 1 }}>{company}</div>}
+            </div>
+          ) : (
+            <div style={{
+              border: `3px solid ${stampColors[color]}`, borderRadius: 4,
+              padding: '10px 20px', textAlign: 'center', background: `${stampColors[color]}08`,
+              minWidth: 160, transform: 'rotate(-12deg)',
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 'bold', color: stampColors[color], fontFamily: 'Georgia, serif' }}>APPROVED</div>
+              <div style={{ fontSize: 10, color: stampColors[color], marginTop: 2 }}>{name || 'Your Name'}</div>
+              {title && <div style={{ fontSize: 8, color: stampColors[color] }}>{title}</div>}
+              <div style={{ fontSize: 9, color: stampColors[color], marginTop: 3 }}>{today}</div>
+              {company && <div style={{ fontSize: 8, color: stampColors[color] }}>{company}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Form */}
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4, fontFamily: '-apple-system, system-ui, sans-serif' }}>Inspector Name *</label>
+            <input
+              type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="John Smith"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4, fontFamily: '-apple-system, system-ui, sans-serif' }}>Title / Credentials</label>
+            <input
+              type="text" value={title} onChange={e => setTitle(e.target.value)}
+              placeholder="Certified Welding Inspector (CWI)"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4, fontFamily: '-apple-system, system-ui, sans-serif' }}>Company</label>
+            <input
+              type="text" value={company} onChange={e => setCompany(e.target.value)}
+              placeholder="Company Name LLC"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4, fontFamily: '-apple-system, system-ui, sans-serif' }}>Color</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['green', 'blue', 'red', 'black'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setColor(c)}
+                    style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      border: color === c ? '3px solid var(--accent)' : '2px solid var(--border)',
+                      background: stampColors[c], cursor: 'pointer',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4, fontFamily: '-apple-system, system-ui, sans-serif' }}>Shape</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setShape('circular')}
+                  style={{
+                    padding: '6px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+                    border: shape === 'circular' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    background: shape === 'circular' ? 'rgba(60,90,140,0.06)' : 'transparent',
+                    fontFamily: 'Georgia, serif',
+                  }}
+                >Circular</button>
+                <button
+                  onClick={() => setShape('rectangular')}
+                  style={{
+                    padding: '6px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+                    border: shape === 'rectangular' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    background: shape === 'rectangular' ? 'rgba(60,90,140,0.06)' : 'transparent',
+                    fontFamily: 'Georgia, serif',
+                  }}
+                >Rectangular</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button
+            className="btn"
+            onClick={() => onSave({ name, title, company, color, shape })}
+            disabled={!name.trim()}
+            style={{ opacity: name.trim() ? 1 : 0.5 }}
+          >
+            Save Stamp
+          </button>
+        </div>
       </div>
     </div>
   );
