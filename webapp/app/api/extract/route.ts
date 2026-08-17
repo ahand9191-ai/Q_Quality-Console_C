@@ -5,7 +5,111 @@ import { PDFDocument } from 'pdf-lib';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// ─── Code-Specific Chemistry Limits ───
+// ─── ASTM Spec-Specific Chemistry Limits (heat analysis) ───
+
+const SPEC_LIMITS: Record<string, {
+  name: string;
+  elements: Record<string, { max?: number; min?: number; label: string; desc: string }>;
+}> = {
+  'A588': {
+    name: 'ASTM A588 — Weathering Steel (Grades A, B, C, K)',
+    elements: {
+      C:  { max: 0.19, label: '≤ 0.19% (Gr.A/B), ≤ 0.15% (Gr.C), ≤ 0.17% (Gr.K)', desc: 'Carbon controls strength and weldability. Grade C is lowest for better weldability.' },
+      Mn: { min: 0.80, max: 1.25, label: '0.80–1.25% (Gr.A/B/C), 0.50–1.20% (Gr.K)', desc: 'Manganese improves strength and hardenability. Grade K has a wider range.' },
+      P:  { max: 0.04, label: '≤ 0.04% (all grades)', desc: 'Phosphorus reduces ductility. A588 allows up to 0.04% (note: A709 is tighter at ≤ 0.030%).' },
+      S:  { max: 0.05, label: '≤ 0.05% (all grades)', desc: 'Sulfur causes hot shortness. A588 allows ≤ 0.05% (A709 is tighter at ≤ 0.030%).' },
+      Si: { min: 0.15, max: 0.65, label: '0.15–0.50% (Gr.B/C), 0.30–0.65% (Gr.A), 0.25–0.65% (Gr.K)', desc: 'Silicon is a deoxidizer. Required for killed steel practice.' },
+      Cu: { min: 0.20, max: 0.50, label: '0.20–0.50% (varies by grade)', desc: 'Copper provides atmospheric corrosion resistance (weathering). Essential for A588.' },
+      Cr: { min: 0.40, max: 0.70, label: '0.40–0.70% (Gr.B/K), 0.40–0.65% (Gr.A)', desc: 'Chromium enhances corrosion resistance in weathering steel.' },
+      Ni: { max: 0.50, label: '≤ 0.40% (Gr.A), ≤ 0.50% (Gr.B), 0.25–0.50% (Gr.C)', desc: 'Nickel improves toughness, especially at low temperatures.' },
+      V:  { min: 0.01, max: 0.10, label: '0.01–0.10% (varies by grade)', desc: 'Vanadium is a grain refiner that improves strength.' },
+    },
+  },
+  'A709': {
+    name: 'ASTM A709 — Structural Steel for Bridges (Grade 50W)',
+    elements: {
+      C:  { max: 0.19, label: '≤ 0.19% (spec), ≤ 0.12% (AWS D1.5 Cl 5.4.2)', desc: 'ASTM allows ≤ 0.19%, but AWS D1.5 Clause 5.4.2 mandates ≤ 0.12% for bridge welds.' },
+      Mn: { min: 0.80, max: 1.25, label: '0.80–1.25% (Table 4, flange ≤ 3/4")', desc: 'Per A709 Table 4. Thicker sections may allow higher Mn per the table.' },
+      P:  { max: 0.030, label: '≤ 0.030% (A709 spec)', desc: 'Tighter than A588 (≤ 0.04%). Bridge steel requires low phosphorus for toughness.' },
+      S:  { max: 0.030, label: '≤ 0.030% (A709 spec)', desc: 'Tighter than A588 (≤ 0.05%). Bridge steel requires low sulfur for weldability.' },
+      Si: { min: 0.15, max: 0.50, label: '0.15–0.50%', desc: 'Required for killed steel practice.' },
+      Cu: { min: 0.20, label: '≥ 0.20% (weathering requirement)', desc: 'Essential for atmospheric corrosion resistance in Grade 50W.' },
+      Cr: { min: 0.40, max: 0.70, label: '0.40–0.70%', desc: 'Enhances corrosion resistance in weathering steel.' },
+      Ni: { max: 0.50, label: '≤ 0.50%', desc: 'Improves toughness.' },
+      V:  { min: 0.01, max: 0.10, label: '0.01–0.10%', desc: 'Grain refiner for strength.' },
+      CE: { max: 0.47, label: '≤ 0.47% (AWS D1.5 Cl 5.4.2)', desc: 'Carbon Equivalent. CE > 0.47% requires special WPS qualification.' },
+    },
+  },
+  'A36': {
+    name: 'ASTM A36 — Carbon Structural Steel',
+    elements: {
+      C:  { max: 0.26, label: '≤ 0.26% (plates ≤ 3/4"), ≤ 0.29% (< 3/8")', desc: 'Carbon varies by thickness. Higher C in thinner sections.' },
+      Mn: { min: 0.80, max: 1.20, label: '0.80–1.20% (plates)', desc: 'Manganese for strength. Shapes may allow 0.60–1.20%.' },
+      P:  { max: 0.040, label: '≤ 0.040% (heat analysis)', desc: 'Phosphorus reduces ductility. Standard structural limit.' },
+      S:  { max: 0.050, label: '≤ 0.050% (heat analysis)', desc: 'Sulfur causes hot shortness. Standard structural limit.' },
+      Si: { min: 0.15, max: 0.40, label: '0.15–0.40% (plates > 3/8")', desc: 'Required for killed steel in thicker plates.' },
+      Cu: { min: 0.20, label: '≥ 0.20% (when Cu steel specified)', desc: 'Optional. Added when copper-bearing steel is ordered.' },
+    },
+  },
+  'A992': {
+    name: 'ASTM A992 — Structural Steel for Buildings (W-Shapes)',
+    elements: {
+      C:  { max: 0.23, label: '≤ 0.23%', desc: 'A992 is the standard for W-shape beams in buildings. Lower C than A36.' },
+      Mn: { min: 0.50, max: 1.60, label: '0.50–1.60%', desc: 'Wide Mn range for different shape sizes.' },
+      P:  { max: 0.035, label: '≤ 0.035%', desc: 'Tighter than A36 (≤ 0.040%). Building steel quality.' },
+      S:  { max: 0.045, label: '≤ 0.045%', desc: 'Tighter than A36 (≤ 0.050%).' },
+      Si: { max: 0.40, label: '≤ 0.40%', desc: 'Silicon for deoxidation.' },
+      V:  { max: 0.15, label: '≤ 0.15% (when specified)', desc: 'Vanadium for grain refinement.' },
+      Nb: { max: 0.05, label: '≤ 0.05% (when specified)', desc: 'Niobium (columbium) for microalloying.' },
+      CE: { max: 0.45, label: '≤ 0.45% (Group 1-3), ≤ 0.47% (Group 4-5)', desc: 'Carbon Equivalent. Determines preheat per AWS D1.1 Table 3.2.' },
+    },
+  },
+  'A500': {
+    name: 'ASTM A500 — Cold-Formed Welded/Seamless Carbon Steel Tubing',
+    elements: {
+      C:  { max: 0.26, label: '≤ 0.26% (Gr.B), ≤ 0.30% (Gr.A)', desc: 'Carbon for tubing. Grade B is most common for structural HSS.' },
+      Mn: { max: 1.35, label: '≤ 1.35%', desc: 'Manganese for strength in cold-formed tubing.' },
+      P:  { max: 0.035, label: '≤ 0.035%', desc: 'Tight phosphorus for cold-formed applications.' },
+      S:  { max: 0.035, label: '≤ 0.035%', desc: 'Tight sulfur for cold-formed applications.' },
+      Cu: { min: 0.20, label: '≥ 0.20% (when Cu specified)', desc: 'Optional copper for corrosion resistance.' },
+    },
+  },
+  'SA-106': {
+    name: 'ASME SA-106 — Seamless Carbon Steel Pipe',
+    elements: {
+      C:  { max: 0.30, label: '≤ 0.30% (Gr.B), ≤ 0.25% (Gr.A), ≤ 0.35% (Gr.C)', desc: 'Grade B is most common. Grade C has highest C for strength.' },
+      Mn: { min: 0.29, max: 1.06, label: '0.29–1.06% (Gr.B/C), 0.27–0.93% (Gr.A)', desc: 'Manganese range varies by grade.' },
+      P:  { max: 0.035, label: '≤ 0.035% (all grades, heat analysis)', desc: 'Tight phosphorus for pressure applications. Much tighter than structural steel.' },
+      S:  { max: 0.035, label: '≤ 0.035% (all grades, heat analysis)', desc: 'Tight sulfur for pressure applications.' },
+      Si: { min: 0.10, label: '≥ 0.10% (min)', desc: 'Minimum silicon for killed steel practice.' },
+    },
+  },
+  'SA-516': {
+    name: 'ASME SA-516 — Pressure Vessel Plate (Grades 55, 60, 65, 70)',
+    elements: {
+      C:  { max: 0.27, label: '≤ 0.27% (Gr.70 ≤ 1/2"), ≤ 0.31% (Gr.70 > 4")', desc: 'Carbon max varies by grade AND thickness. Gr.70: 0.21–0.31%.' },
+      Mn: { min: 0.85, max: 1.20, label: '0.85–1.20% (Gr.70), 0.60–1.10% (Gr.55)', desc: 'Manganese range varies by grade.' },
+      P:  { max: 0.035, label: '≤ 0.035% (heat analysis)', desc: 'Tight phosphorus for pressure vessel quality.' },
+      S:  { max: 0.035, label: '≤ 0.035% (heat analysis)', desc: 'Tight sulfur for pressure vessel quality.' },
+      Si: { min: 0.15, max: 0.40, label: '0.15–0.40%', desc: 'Silicon for killed steel practice.' },
+    },
+  },
+  'API 5L': {
+    name: 'API 5L — Pipeline Steel (PSL1 & PSL2)',
+    elements: {
+      C:  { max: 0.26, label: '≤ 0.26% (PSL1), ≤ 0.24% (PSL2)', desc: 'PSL2 has tighter C for improved field weldability.' },
+      Mn: { max: 1.35, label: '≤ 1.35% (PSL1), ≤ 1.40% (PSL2)', desc: 'Pipeline steel uses higher Mn for strength.' },
+      P:  { max: 0.030, label: '≤ 0.030% (PSL1), ≤ 0.025% (PSL2)', desc: 'PSL2 has tighter P. Sour service requires ≤ 0.025%.' },
+      S:  { max: 0.030, label: '≤ 0.030% (PSL1), ≤ 0.015% (PSL2)', desc: 'PSL2 has MUCH tighter S. Sour service (NACE): ≤ 0.002%.' },
+      V:  { max: 0.04, label: '≤ 0.04%', desc: 'Vanadium microalloying. V+Nb+Ti total ≤ 0.15%.' },
+      Nb: { max: 0.04, label: '≤ 0.04%', desc: 'Niobium (columbium) for microalloyed pipeline steel.' },
+      Ti: { max: 0.04, label: '≤ 0.04%', desc: 'Titanium for nitrogen control.' },
+      CE: { max: 0.43, label: '≤ 0.43% (PSL2)', desc: 'PSL2 requires CE ≤ 0.43% OR PCM ≤ 0.25%.' },
+    },
+  },
+};
+
+// ─── Code-Level Limits (welding code requirements) ───
 
 const CODE_LIMITS: Record<string, {
   name: string;
@@ -18,73 +122,97 @@ const CODE_LIMITS: Record<string, {
   'AWS D1.1': {
     name: 'AWS D1.1 — Structural Welding Code (Steel)',
     elements: {
-      C:  { max: 0.12, label: '≤ 0.12%', desc: 'Controls weldability. Higher carbon increases hardness and cracking risk.' },
-      Mn: { max: 1.25, label: '≤ 1.25%', desc: 'Affects strength and hardenability. Excess can cause welding issues.' },
-      P:  { max: 0.04, label: '≤ 0.04%', desc: 'Phosphorus reduces ductility and toughness. Must be minimized.' },
-      S:  { max: 0.05, label: '≤ 0.05%', desc: 'Sulfur causes hot shortness and reduces weldability.' },
-      Si: { min: 0.15, max: 0.50, label: '0.15–0.50%', desc: 'Deoxidizer. Required for killed steel practice.' },
-      Cu: { min: 0.20, label: '≥ 0.20%', desc: 'Required for weathering steel corrosion resistance.' },
-      CE: { max: 0.47, label: '≤ 0.47%', desc: 'Carbon Equivalent — determines preheat requirements for prequalified WPS.' },
+      C:  { max: 0.23, label: '≤ 0.23% (A992)', desc: 'A992 limit. A36 allows ≤ 0.26%, A588 allows ≤ 0.19%. Controls weldability.' },
+      Mn: { min: 0.50, max: 1.60, label: '0.50–1.60% (A992)', desc: 'A992 range. A36: 0.80–1.20%, A588: 0.80–1.25%. Affects hardenability.' },
+      P:  { max: 0.035, label: '≤ 0.035% (A992)', desc: 'A992 limit. A36 allows ≤ 0.040%. Reduces ductility and toughness.' },
+      S:  { max: 0.045, label: '≤ 0.045% (A992)', desc: 'A992 limit. A36 allows ≤ 0.050%. Causes hot shortness and lamellar tearing.' },
+      Si: { max: 0.40, label: '≤ 0.40%', desc: 'Deoxidizer. Required for killed steel practice.' },
+      Cu: { min: 0.20, label: '≥ 0.20% (weathering steel)', desc: 'Required for A588 weathering steel corrosion resistance.' },
+      CE: { max: 0.45, label: '≤ 0.45% (Grp 1-3), ≤ 0.47% (Grp 4-5)', desc: 'Determines preheat requirements per AWS D1.1 Table 3.2. CE > 0.47 requires qualified WPS.' },
     },
-    ceMax: 0.47,
+    ceMax: 0.45,
     ceFormula: 'CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15',
-    ceDesc: 'If CE > 0.47, preheat is required per Table 3.2. CE > 0.57 may not be prequalified.',
-    notes: 'AWS D1.1 covers structural steel welding for buildings, not bridges. CE limit ensures prequalified WPS status.',
+    ceDesc: 'CE ≤ 0.45% for Group 1-3 shapes, ≤ 0.47% for Group 4-5. Per AWS D1.1 Annex XI. CE > 0.47 may not be prequalified.',
+    notes: 'AWS D1.1 covers structural steel for buildings (not bridges). Limits shown are for A992 (most common beam spec). A36: C ≤ 0.25%, P ≤ 0.04%, S ≤ 0.05%. A588: C ≤ 0.19%, P ≤ 0.04%, S ≤ 0.05%. Always verify against the actual material spec on the MTR.',
   },
   'AWS D1.5': {
     name: 'AWS D1.5 — Bridge Welding Code',
     elements: {
-      C:  { max: 0.12, label: '≤ 0.12% (Cl 5.4.2)', desc: 'Mandatory limit for Grade 50W. Controls HAZ hardness and weldability.' },
-      Mn: { max: 1.25, label: '≤ 1.25% (A709 Table 4)', desc: 'Max for flange ≤ 3/4". Higher Mn allowed for thicker sections per Table 4.' },
-      P:  { max: 0.04, label: '≤ 0.04%', desc: 'Reduces toughness and ductility. Bridge steel requires low phosphorus.' },
-      S:  { max: 0.05, label: '≤ 0.05%', desc: 'Causes lamellar tearing and hot cracking in welds.' },
-      Si: { min: 0.15, max: 0.50, label: '0.15–0.50%', desc: 'Required for killed steel. Indicates deoxidized, fine-grain practice.' },
-      Cu: { min: 0.20, label: '≥ 0.20%', desc: 'Essential for weathering steel (A588/A709 Gr 50W) atmospheric corrosion resistance.' },
-      Ni: { max: 0.50, label: '≤ 0.50%', desc: 'Improves toughness. Typical range for weathering grades.' },
-      Cr: { max: 0.60, label: '≤ 0.60%', desc: 'Enhances corrosion resistance in weathering steel.' },
-      V:  { max: 0.06, label: '≤ 0.06%', desc: 'Grain refiner. Improves strength but must be controlled for weldability.' },
-      CE: { max: 0.47, label: '≤ 0.47% (Cl 5.4.2)', desc: 'Carbon Equivalent limit for bridge welds. Exceeding requires engineering approval.' },
+      C:  { max: 0.12, label: '≤ 0.12% (AWS D1.5 Cl 5.4.2)', desc: 'MANDATORY per AWS D1.5 Clause 5.4.2. ASTM A709 allows ≤ 0.19%, but the welding code overrides for bridge welds. Controls HAZ hardness.' },
+      Mn: { min: 0.80, max: 1.25, label: '0.80–1.25% (A709 Table 4, flange ≤ 3/4")', desc: 'Per A709 Table 4. Thicker flanges (>3/4") may allow up to 1.50% Mn per the table. Check thickness.' },
+      P:  { max: 0.030, label: '≤ 0.030% (A709 spec)', desc: 'Tighter than A588 (≤ 0.04%). Bridge steel requires low P for toughness at low temperatures.' },
+      S:  { max: 0.030, label: '≤ 0.030% (A709 spec)', desc: 'Tighter than A588 (≤ 0.05%). Bridge steel requires low S for weldability and ductility.' },
+      Si: { min: 0.15, max: 0.50, label: '0.15–0.50% (A588/A709)', desc: 'Required for killed steel practice. Indicates deoxidized, fine-grain practice.' },
+      Cu: { min: 0.20, label: '≥ 0.20% (A709 Grade 50W)', desc: 'Essential for weathering steel atmospheric corrosion resistance. Grade 50W requires Cu.' },
+      Cr: { min: 0.40, max: 0.70, label: '0.40–0.70% (A588 Grade B)', desc: 'Enhances corrosion resistance in weathering steel.' },
+      Ni: { max: 0.50, label: '≤ 0.50% (A588 Grade B)', desc: 'Improves toughness, especially at low temperatures.' },
+      V:  { min: 0.01, max: 0.10, label: '0.01–0.10% (A588 Grade B)', desc: 'Grain refiner. Improves strength but must be controlled for weldability.' },
+      CE: { max: 0.47, label: '≤ 0.47% (AWS D1.5 Cl 5.4.2)', desc: 'MANDATORY per Clause 5.4.2. CE > 0.47% requires special WPS qualification. Maximum 0.55% for any bridge steel.' },
     },
     ceMax: 0.47,
     ceFormula: 'CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15',
-    ceDesc: 'CE > 0.47 requires special WPS qualification per Clause 5. Maximum 0.55 for any bridge steel.',
-    notes: 'AWS D1.5 governs all bridge welding in the US. A709 Grade 50W is the primary weathering bridge steel spec. Killed fine grain practice and no weld repair are mandatory statements.',
+    ceDesc: 'CE > 0.47% requires special WPS qualification per Clause 5. Maximum 0.55% for any bridge steel. This is a hard limit per AWS D1.5.',
+    notes: 'AWS D1.5 governs ALL bridge welding in the US. A709 Grade 50W is the primary weathering bridge steel. P ≤ 0.030% and S ≤ 0.030% per ASTM A709 (tighter than A588\'s ≤ 0.04%). Killed fine grain practice and no weld repair statements are MANDATORY.',
   },
   'ASME': {
     name: 'ASME BPVC — Boiler & Pressure Vessel Code',
     elements: {
-      C:  { max: 0.30, label: '≤ 0.30% (SA-106 Gr.B)', desc: 'Varies by spec: SA-106 Gr.A ≤0.25%, Gr.B ≤0.30%, Gr.C ≤0.35%. SA-516 Gr.70 ≤0.27%.' },
-      Mn: { min: 0.29, max: 1.06, label: '0.29–1.06% (SA-106 Gr.B)', desc: 'Range varies by spec. SA-516 Gr.70: 0.85–1.20%. P-alloy: 0.30–0.60%.' },
-      P:  { max: 0.035, label: '≤ 0.035%', desc: 'Tighter than structural steel. Pressure applications require very low phosphorus.' },
-      S:  { max: 0.035, label: '≤ 0.035%', desc: 'Tighter than structural steel. Reduces hot shortness in pressure equipment.' },
-      Si: { min: 0.10, max: 0.30, label: '0.10–0.30%', desc: 'Required for killed steel practice in pressure applications.' },
-      Cr: { max: 0.30, label: '≤ 0.30% (low alloy)', desc: 'SA-335 P11: 1.00–1.50%. Chrome-moly alloys have higher Cr for creep resistance.' },
-      Mo: { max: 0.10, label: '≤ 0.10% (carbon steel)', desc: 'SA-335 P11: 0.44–0.65%. Molybdenum improves high-temperature strength.' },
-      CE: { max: 0.43, label: '≤ 0.43%', desc: 'General CE limit for ASME materials. Individual specs may have tighter requirements.' },
+      C:  { max: 0.30, label: '≤ 0.30% (SA-106 Gr.B), ≤ 0.27% (SA-516 Gr.70)', desc: 'Varies by spec and thickness. SA-106 Gr.A ≤ 0.25%, Gr.B ≤ 0.30%, Gr.C ≤ 0.35%. SA-516 Gr.70: 0.21–0.31%.' },
+      Mn: { min: 0.29, max: 1.06, label: '0.29–1.06% (SA-106 Gr.B), 0.85–1.20% (SA-516 Gr.70)', desc: 'Range varies by spec. Pressure vessel steel has controlled Mn for strength.' },
+      P:  { max: 0.035, label: '≤ 0.035% (heat analysis, all pressure specs)', desc: 'MUCH tighter than structural steel (≤ 0.04%). Pressure applications require very low phosphorus.' },
+      S:  { max: 0.035, label: '≤ 0.035% (heat analysis, all pressure specs)', desc: 'MUCH tighter than structural steel (≤ 0.05%). Pressure applications require very low sulfur.' },
+      Si: { min: 0.10, label: '≥ 0.10% (min, killed steel)', desc: 'Minimum silicon for killed steel practice. SA-516: 0.15–0.40%.' },
+      Cr: { max: 0.30, label: '≤ 0.30% (carbon steel), 1.00–1.50% (SA-335 P11)', desc: 'Chrome-moly alloys have much higher Cr for creep resistance at high temperature.' },
+      Mo: { max: 0.10, label: '≤ 0.10% (carbon steel), 0.44–0.65% (SA-335 P11)', desc: 'Molybdenum improves high-temperature strength in alloy specs.' },
+      CE: { max: 0.43, label: '≤ 0.43% (general)', desc: 'General CE limit. Individual specs may have tighter requirements. SA-516 typically ≤ 0.45%.' },
     },
     ceMax: 0.43,
     ceFormula: 'CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15',
-    ceDesc: 'CE limits vary by material spec. SA-516 typically ≤0.45%. Low-alloy specs have specific limits.',
-    notes: 'ASME BPVC Section IX governs welding qualifications. Material specs in Section II (SA- prefix). P-Number grouping determines WPS requirements. Chemistry limits vary significantly by specific spec — verify against the actual material grade.',
+    ceDesc: 'CE limits vary by material spec. SA-516 Gr.70 typically ≤ 0.45%. Low-alloy specs (P11, P22) have specific CE requirements per Section IX.',
+    notes: 'ASME BPVC Section IX governs welding qualifications. Material specs in Section II (SA- prefix). SA-106 Gr.B: C ≤ 0.30%, Mn 0.29-1.06%. SA-516 Gr.70: C ≤ 0.27% (≤ 1/2"), Mn 0.85-1.20%. P and S ≤ 0.035% for ALL pressure applications. Verify against the actual material grade on the MTR.',
   },
   'API': {
     name: 'API 5L — Pipeline Steel (American Petroleum Institute)',
     elements: {
-      C:  { max: 0.26, label: '≤ 0.26% (PSL1)', desc: 'PSL1: ≤0.26%. PSL2: ≤0.24% for most grades. Lower carbon improves field weldability.' },
-      Mn: { max: 1.35, label: '≤ 1.35% (PSL1)', desc: 'PSL1: ≤1.35%. PSL2: ≤1.40%. Pipeline steel uses higher Mn for strength.' },
-      P:  { max: 0.030, label: '≤ 0.030% (PSL1)', desc: 'PSL1: ≤0.030%. PSL2: ≤0.025%. Very tight phosphorus for sour service.' },
-      S:  { max: 0.030, label: '≤ 0.030% (PSL1)', desc: 'PSL1: ≤0.030%. PSL2: ≤0.015%. Sour service (HIC/SWC) requires ≤0.002%.' },
-      V:  { max: 0.04, label: '≤ 0.04%', desc: 'Vanadium is a grain refiner. Combined with Nb and Ti, total ≤0.15%.' },
+      C:  { max: 0.26, label: '≤ 0.26% (PSL1), ≤ 0.24% (PSL2)', desc: 'PSL2 has tighter C for field weldability. Lower grades (B) allow ≤ 0.28%, higher grades ≤ 0.26%.' },
+      Mn: { max: 1.35, label: '≤ 1.35% (PSL1), ≤ 1.40% (PSL2)', desc: 'Pipeline steel uses higher Mn for strength. Grade B: ≤ 1.20%, X70: ≤ 1.65%.' },
+      P:  { max: 0.030, label: '≤ 0.030% (PSL1), ≤ 0.025% (PSL2)', desc: 'PSL2 has tighter P. Sour service requires ≤ 0.025%.' },
+      S:  { max: 0.030, label: '≤ 0.030% (PSL1), ≤ 0.015% (PSL2)', desc: 'PSL2 has MUCH tighter S. Sour service (NACE MR0175): S ≤ 0.002% — extremely tight.' },
+      V:  { max: 0.04, label: '≤ 0.04%', desc: 'Vanadium for grain refinement. V+Nb+Ti combined ≤ 0.15%.' },
       Nb: { max: 0.04, label: '≤ 0.04%', desc: 'Niobium (columbium) for microalloyed pipeline steel.' },
-      Ti: { max: 0.04, label: '≤ 0.04%', desc: 'Titanium for nitrogen control. V+Nb+Ti total ≤0.15%.' },
-      CE: { max: 0.43, label: '≤ 0.43% (PSL2)', desc: 'PSL2 CE ≤0.43%. Alternatively, PCM ≤0.25% for crack susceptibility.' },
+      Ti: { max: 0.04, label: '≤ 0.04%', desc: 'Titanium for nitrogen control. Prevents strain aging.' },
+      CE: { max: 0.43, label: '≤ 0.43% (PSL2)', desc: 'PSL2 requires CE ≤ 0.43% OR PCM ≤ 0.25%. PCM formula includes boron.' },
     },
     ceMax: 0.43,
     ceFormula: 'CE = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15',
-    ceDesc: 'PSL2 requires CE ≤0.43% OR PCM ≤0.25%. PCM formula: C + Si/30 + Mn/20 + Cu/20 + Ni/60 + Cr/20 + Mo/15 + V/10 + 5B.',
-    notes: 'API 5L covers pipeline steel. PSL1 (Product Specification Level 1) is standard. PSL2 has stricter chemistry and CVN requirements. Sour service (NACE MR0175) has additional restrictions on S and P.',
+    ceDesc: 'PSL2 requires CE ≤ 0.43% OR PCM ≤ 0.25%. PCM = C + Si/30 + Mn/20 + Cu/20 + Ni/60 + Cr/20 + Mo/15 + V/10 + 5B. PSL1 has no CE requirement.',
+    notes: 'API 5L covers pipeline steel. PSL1 is standard, PSL2 has stricter chemistry and CVN requirements. Sour service (NACE MR0175/H2S) requires S ≤ 0.002% and P ≤ 0.025% — verify if sour service is specified.',
   },
 };
+
+// ─── Match extracted spec to SPEC_LIMITS ───
+
+function findSpecLimits(specs: string[]): { name: string; elements: Record<string, any> } | null {
+  if (!specs || specs.length === 0) return null;
+  const specStr = specs.join(' ').toUpperCase().replace(/[-\s]/g, '');
+
+  for (const [key, limits] of Object.entries(SPEC_LIMITS)) {
+    const keyNorm = key.toUpperCase().replace(/[-\s]/g, '');
+    if (specStr.includes(keyNorm)) return limits;
+  }
+
+  // Try partial matches
+  if (specStr.includes('588')) return SPEC_LIMITS['A588'];
+  if (specStr.includes('709')) return SPEC_LIMITS['A709'];
+  if (specStr.includes('A36') || specStr.includes('SA36')) return SPEC_LIMITS['A36'];
+  if (specStr.includes('992')) return SPEC_LIMITS['A992'];
+  if (specStr.includes('500')) return SPEC_LIMITS['A500'];
+  if (specStr.includes('106')) return SPEC_LIMITS['SA-106'];
+  if (specStr.includes('516')) return SPEC_LIMITS['SA-516'];
+  if (specStr.includes('5L') || specStr.includes('API')) return SPEC_LIMITS['API 5L'];
+
+  return null;
+}
 
 // ─── Code-specific GPT-4o prompt additions ───
 
@@ -93,16 +221,23 @@ function getCodePromptSection(code: string): string {
     case 'AWS D1.1':
       return `GOVERNING CODE: AWS D1.1 — Structural Welding Code (Steel)
 - Focus on structural steel specs: A36, A588, A992, A500, A53, A513.
-- CE limit ≤ 0.47% for prequalified WPS (Table 3.2).
+- CE limit ≤ 0.45% (Group 1-3) or ≤ 0.47% (Group 4-5) for prequalified WPS (Table 3.2).
 - Look for "Buy America" compliance statements.
-- Killed fine grain practice per ASTM A6.
-- No weld repair statement.`;
+- Killed fine grain practice per ASTM A6/A20.
+- No weld repair statement.
+- A992: C ≤ 0.23%, P ≤ 0.035%, S ≤ 0.045%.
+- A36: C ≤ 0.26%, P ≤ 0.040%, S ≤ 0.050%.
+- A588: C ≤ 0.19%, P ≤ 0.040%, S ≤ 0.050%.`;
 
     case 'AWS D1.5':
       return `GOVERNING CODE: AWS D1.5 — Bridge Welding Code
 - Focus on bridge steel: A709 Grade 50W, A588 weathering steel.
-- C ≤ 0.12% (Clause 5.4.2), Mn ≤ 1.25% (A709 Table 4), CE ≤ 0.47%.
-- "Buy America" / "Build America" compliance is mandatory.
+- C ≤ 0.12% (MANDATORY per AWS D1.5 Clause 5.4.2, overrides ASTM A709's ≤ 0.19%).
+- Mn ≤ 1.25% (A709 Table 4, flange ≤ 3/4").
+- P ≤ 0.030% (A709 spec, tighter than A588's ≤ 0.04%).
+- S ≤ 0.030% (A709 spec, tighter than A588's ≤ 0.05%).
+- CE ≤ 0.47% (MANDATORY per Clause 5.4.2).
+- "Buy America" / "Build America" compliance is mandatory for federally funded bridges.
 - Killed fine grain practice is REQUIRED per ASTM A6.
 - No weld repair statement is REQUIRED.`;
 
@@ -110,23 +245,26 @@ function getCodePromptSection(code: string): string {
       return `GOVERNING CODE: ASME BPVC — Boiler & Pressure Vessel Code
 - Focus on pressure equipment specs: SA-106, SA-516, SA-335, SA-240, SA-182, SA-234.
 - Specs use SA- prefix (ASME equivalent of ASTM A- prefix).
-- P ≤ 0.035%, S ≤ 0.035% (tighter than structural steel).
-- Material may have P-Number grouping (e.g., P-No.1 for carbon steel, P-No.4 for low alloy).
+- P ≤ 0.035% (heat analysis, ALL pressure specs — much tighter than structural steel).
+- S ≤ 0.035% (heat analysis, ALL pressure specs — much tighter than structural steel).
+- Material may have P-Number grouping (P-No.1 for carbon steel, P-No.4 for low alloy).
 - Do NOT look for "Buy America" — not relevant for pressure vessels.
 - Look for "fully killed" or "fine grain practice" per SA-20.
+- SA-106 Gr.B: C ≤ 0.30%, Mn 0.29-1.06%.
+- SA-516 Gr.70: C ≤ 0.27% (≤ 1/2"), Mn 0.85-1.20%.
 - ASME welding governed by Section IX — QW-470 chemistry requirements may apply.`;
 
     case 'API':
       return `GOVERNING CODE: API 5L — Pipeline Steel
-- Focus on pipeline specs: API 5L (grades X42 through X80), PSL1 and PSL2.
-- C ≤ 0.26% (PSL1), C ≤ 0.24% (PSL2).
-- P ≤ 0.030% (PSL1), P ≤ 0.025% (PSL2).
-- S ≤ 0.030% (PSL1), S ≤ 0.015% (PSL2). Sour service requires even lower S.
-- Look for PSL designation (PSL1 or PSL2).
-- CE ≤ 0.43% or PCM ≤ 0.25% (PSL2).
+- Focus on pipeline specs: API 5L (grades B, X42 through X80), PSL1 and PSL2.
+- PSL1: C ≤ 0.26%, Mn ≤ 1.35%, P ≤ 0.030%, S ≤ 0.030%.
+- PSL2: C ≤ 0.24%, Mn ≤ 1.40%, P ≤ 0.025%, S ≤ 0.015%.
+- CE ≤ 0.43% OR PCM ≤ 0.25% (PSL2 only).
 - CVN impact testing is mandatory for PSL2.
+- Look for PSL designation (PSL1 or PSL2).
+- Sour service (NACE MR0175): S ≤ 0.002%, P ≤ 0.025%.
 - Do NOT look for "Buy America" — not relevant for pipeline steel.
-- Look for "sour service" designation if applicable (NACE MR0175).`;
+- V+Nb+Ti combined ≤ 0.15%.`;
 
     default:
       return '';
@@ -174,12 +312,16 @@ export async function POST(req: NextRequest) {
       extractedData.shape = deriveShape(extractedData.sizes, fullText);
     }
 
+    // Find spec-specific limits
+    const specLimits = extractedData.specifications ? findSpecLimits(extractedData.specifications) : null;
+
     return NextResponse.json({
       success: true,
       extractionMethod,
       textLength: fullText.length,
       code,
       codeLimits: CODE_LIMITS[code] || CODE_LIMITS['AWS D1.5'],
+      specLimits,
       extractedData,
     });
   } catch (err) {
@@ -319,21 +461,13 @@ CRITICAL FIELDS (in priority order):
 2. Specification — e.g. ASTM A588, A709, A500, A36, A992, SA-106, SA-516, API 5L. Do NOT guess.
 3. Size/Designation — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2, NPS 6.
 4. Shape — The physical form/category. Use one of: Plate, I Beam, H Beam, Flat Bar, Channel, Angle, Pipe, Coil, Round, Square, HSS Rectangle.
-   - Plate: thickness x width x length (e.g. 0.7500" x 96" x 240")
-   - I Beam: W-shapes (e.g. W24x76)
-   - H Beam: HP shapes (e.g. HP10x42)
-   - Channel: C or MC shapes
-   - Angle: L-shapes
-   - Pipe: NPS, SCH, or pipe designations
-   - Determine from size designation and descriptive text.
 5. Grade — e.g. Grade 50W, Grade B, Grade 36, X52, B. Separate from spec if combined.
 6. Chemistry (per heat) — C, Mn, P, S, Si, Cu, Ni, Cr, V, Mo, Nb, Ti, CE if present.
-7. Country of Origin — USA, Canada, etc.
-8. Mechanical Properties — Yield, Tensile, Elongation if present.
-9. CVN (Charpy V-Notch) — Extract ALL impact test data. Temperature, energy (ft-lbs/Joules), acceptance.
-10. Killed Fine Grain Practice — "fully killed", "killed steel", "fine grain practice". true/false.
-11. No Weld Repair — "no weld repair", "no repair welding". true/false.
-12. PSL Designation (API only) — PSL1 or PSL2 if present.
+7. Mechanical Properties — Yield, Tensile, Elongation if present.
+8. CVN (Charpy V-Notch) — Extract ALL impact test data. Temperature, energy (ft-lbs/Joules), acceptance.
+9. Killed Fine Grain Practice — "fully killed", "killed steel", "fine grain practice". true/false.
+10. No Weld Repair — "no weld repair", "no repair welding". true/false.
+11. PSL Designation (API only) — PSL1 or PSL2 if present.
 
 Return a JSON object with this structure:
 {
@@ -365,8 +499,8 @@ RULES:
 - If OCR misread a value (e.g. "AS88" should be "A588"), correct it.
 - Extract ALL heat numbers — do not cap at 2.
 - Shape must be one of: Plate, I Beam, H Beam, Flat Bar, Channel, Angle, Pipe, Coil, Round, Square, HSS Rectangle.
-- killedFineGrainPractice: true only if the MTR explicitly states this. false if not stated.
-- noWeldRepair: true only if the MTR explicitly states this. false if not stated.
+- killedFineGrainPractice: true only if the MTR explicitly states this.
+- noWeldRepair: true only if the MTR explicitly states this.
 - CVN is critical — extract all data including temperature, energy values, and acceptance criteria.
 - If the document is not an MTR, return {"extractionConfidence": "not_an_mtr"}.
 - Return ONLY valid JSON, no markdown.`;
