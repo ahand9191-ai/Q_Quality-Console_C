@@ -1,1 +1,0 @@
-*.xlsx !filter !diff !merge -text
