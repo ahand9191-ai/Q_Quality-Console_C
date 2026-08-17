@@ -9,10 +9,11 @@ interface ExtractedData {
   sizes: string[];
   materialType: string;
   countryOfOrigin: string;
-  poNumber: string;
-  quantity: string;
   chemistryByHeat: Record<string, Record<string, number | string>>;
   mechanicalProperties: Record<string, Record<string, string>>;
+  cvnByHeat: Record<string, Record<string, string>>;
+  killedFineGrainPractice: boolean;
+  noWeldRepair: boolean;
   notes: string;
   extractionConfidence: string;
 }
@@ -20,8 +21,9 @@ interface ExtractedData {
 interface ExtractResponse {
   success: boolean;
   error?: string;
+  extractionMethod?: string;
+  textLength?: number;
   extractedData?: ExtractedData;
-  textractRaw?: { fullText: string; blockCount: number };
 }
 
 export default function Home() {
@@ -29,7 +31,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractedData | null>(null);
-  const [textractInfo, setTextractInfo] = useState<{ blockCount: number; textPreview: string } | null>(null);
+  const [method, setMethod] = useState<string>('');
   const [dragging, setDragging] = useState(false);
 
   const handleFile = useCallback((selectedFile: File | null) => {
@@ -41,7 +43,6 @@ export default function Home() {
     setFile(selectedFile);
     setError(null);
     setResult(null);
-    setTextractInfo(null);
   }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -72,12 +73,7 @@ export default function Home() {
         setError(data.error || 'Extraction failed');
       } else {
         setResult(data.extractedData || null);
-        if (data.textractRaw) {
-          setTextractInfo({
-            blockCount: data.textractRaw.blockCount,
-            textPreview: data.textractRaw.fullText.substring(0, 200),
-          });
-        }
+        setMethod(data.extractionMethod || '');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error during extraction');
@@ -90,7 +86,7 @@ export default function Home() {
     setFile(null);
     setResult(null);
     setError(null);
-    setTextractInfo(null);
+    setMethod('');
   };
 
   if (loading) {
@@ -103,7 +99,7 @@ export default function Home() {
         <div className="processing">
           <div className="spinner" />
           <h2>Processing MTR...</h2>
-          <div className="step">Sending to AWS Textract → GPT-4o field mapping</div>
+          <div className="step">Extracting text → GPT-4o field mapping</div>
         </div>
       </div>
     );
@@ -120,28 +116,25 @@ export default function Home() {
         <div className="results">
           <div className="results-header">
             <h2>Extraction Results</h2>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {method && (
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
+                  Method: {method === 'text' ? 'Direct text extraction' : 'AWS Textract OCR'}
+                </span>
+              )}
               <button className="btn btn-outline" onClick={reset}>Upload Another</button>
             </div>
           </div>
 
-          {textractInfo && (
-            <div className="data-card">
-              <h3>Processing Info</h3>
-              <div className="field-grid">
-                <div className="field-row">
-                  <div className="field-label">Textract Blocks</div>
-                  <div className="field-value">{textractInfo.blockCount}</div>
-                </div>
-                <div className="field-row">
-                  <div className="field-label">Confidence</div>
-                  <div className="field-value" style={{ textTransform: 'capitalize' }}>
-                    {result.extractionConfidence || 'unknown'}
-                  </div>
-                </div>
-              </div>
+          {/* Compliance Checks */}
+          <div className="data-card">
+            <h3>Compliance Statements</h3>
+            <div className="compliance-grid">
+              <ComplianceCheck label="Killed Fine Grain Practice" passed={result.killedFineGrainPractice} />
+              <ComplianceCheck label="No Weld Repair" passed={result.noWeldRepair} />
+              <ComplianceCheck label="Country of Origin (Domestic)" passed={result.countryOfOrigin?.toLowerCase().includes('usa') || result.countryOfOrigin?.toLowerCase().includes('america')} />
             </div>
-          )}
+          </div>
 
           {/* Core Fields */}
           <div className="data-card">
@@ -149,18 +142,75 @@ export default function Home() {
             <div className="field-grid">
               <FieldRow label="Heat Numbers" value={result.heatNumbers?.join(', ') || ''} critical />
               <FieldRow label="Specifications" value={result.specifications?.join(', ') || ''} critical />
-              <FieldRow label="Grade" value={result.grade || ''} />
+              <FieldRow label="Grade" value={result.grade || ''} critical />
               <FieldRow label="Size / Designation" value={result.sizes?.join(', ') || ''} critical />
-              <FieldRow label="Material Type" value={result.materialType || ''} />
+              <FieldRow label="Material Type" value={result.materialType || ''} critical />
               <FieldRow label="Country of Origin" value={result.countryOfOrigin || ''} critical />
-              <FieldRow label="PO Number" value={result.poNumber || ''} />
-              <FieldRow label="Quantity" value={result.quantity || ''} />
+              <FieldRow label="Extraction Confidence" value={result.extractionConfidence || 'unknown'} />
             </div>
           </div>
 
           {/* Chemistry */}
           {result.chemistryByHeat && Object.keys(result.chemistryByHeat).length > 0 && (
             <ChemistryTable data={result.chemistryByHeat} />
+          )}
+
+          {/* Mechanical Properties */}
+          {result.mechanicalProperties && Object.keys(result.mechanicalProperties).length > 0 && (
+            <div className="data-card">
+              <h3>Mechanical Properties by Heat</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="chem-table">
+                  <thead>
+                    <tr>
+                      <th>Heat #</th>
+                      <th>Yield (ksi)</th>
+                      <th>Tensile (ksi)</th>
+                      <th>Elongation (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(result.mechanicalProperties).map(([heat, props]) => (
+                      <tr key={heat}>
+                        <td>{heat}</td>
+                        <td>{props.yield || '—'}</td>
+                        <td>{props.tensile || '—'}</td>
+                        <td>{props.elongation || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* CVN / Charpy V-Notch */}
+          {result.cvnByHeat && Object.keys(result.cvnByHeat).length > 0 && (
+            <div className="data-card">
+              <h3>CVN (Charpy V-Notch) Impact Tests</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="chem-table">
+                  <thead>
+                    <tr>
+                      <th>Heat #</th>
+                      <th>Temperature</th>
+                      <th>Energy (ft-lbs)</th>
+                      <th>Acceptance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(result.cvnByHeat).map(([heat, cvn]) => (
+                      <tr key={heat}>
+                        <td>{heat}</td>
+                        <td>{cvn.temperature || '—'}</td>
+                        <td>{cvn.energy_ft_lbs || cvn.energy || '—'}</td>
+                        <td>{cvn.acceptance || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
           {/* Notes */}
@@ -240,7 +290,7 @@ export default function Home() {
 
       <div style={{ marginTop: 40, fontSize: 12, color: 'var(--muted)', fontFamily: '-apple-system, system-ui, sans-serif' }}>
         <p style={{ marginBottom: 6 }}>
-          <strong>Pipeline:</strong> PDF → AWS Textract (OCR + Tables) → GPT-4o (field mapping + chemistry extraction)
+          <strong>Pipeline:</strong> PDF text extraction → GPT-4o (field mapping + chemistry + CVN + compliance)
         </p>
         <p>Verifies against ASTM A588/A709 Grade 50W, AWS D1.1/D1.5, and Buy America requirements.</p>
       </div>
@@ -262,11 +312,22 @@ function FieldRow({ label, value, critical }: { label: string; value: string; cr
   );
 }
 
+function ComplianceCheck({ label, passed }: { label: string; passed: boolean }) {
+  return (
+    <div className={`compliance-item ${passed ? 'pass' : 'fail'}`}>
+      <div className="compliance-icon">{passed ? '✓' : '✗'}</div>
+      <div>
+        <div className="compliance-label">{label}</div>
+        <div className="compliance-status">{passed ? 'Verified' : 'Not Found'}</div>
+      </div>
+    </div>
+  );
+}
+
 function ChemistryTable({ data }: { data: Record<string, Record<string, number | string>> }) {
   const elements = ['C', 'Mn', 'P', 'S', 'Si', 'Cu', 'Ni', 'Cr', 'V', 'Mo', 'Nb', 'CE'];
   const heats = Object.keys(data);
 
-  // Spec limits for A588/A709 Grade 50W
   const limits: Record<string, { max: number; label: string }> = {
     C: { max: 0.12, label: '≤ 0.12% (D1.5)' },
     Mn: { max: 1.25, label: '≤ 1.25% (A709 Table 4)' },

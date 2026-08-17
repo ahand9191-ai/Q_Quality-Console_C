@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TextractClient, AnalyzeDocumentCommand } from '@aws-sdk/client-textract';
+import { TextractClient, DetectDocumentTextCommand } from '@aws-sdk/client-textract';
+import { PDFDocument } from 'pdf-lib';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,22 +18,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Only PDF files are supported' }, { status: 400 });
     }
 
-    // Read file bytes
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
 
-    // Step 1: AWS Textract — OCR + Tables
-    const textractResult = await callTextract(bytes);
+    // Step 1: Try fast text extraction first (works for digital/text-based PDFs)
+    let fullText = '';
+    let extractionMethod = 'text';
 
-    // Step 2: GPT-4o — structured field extraction
-    const extractedData = await callGPT4o(textractResult, file.name);
+    try {
+      fullText = await extractPdfText(bytes);
+    } catch (e) {
+      console.error('Text extraction failed, will try OCR:', e);
+    }
+
+    // Step 2: If no text found, it's likely a scanned PDF — fall back to Textract OCR
+    if (!fullText || fullText.trim().length < 50) {
+      extractionMethod = 'textract';
+      fullText = await callTextract(bytes);
+    }
+
+    // Step 3: GPT-4o — structured field extraction from the text
+    const extractedData = await callGPT4o(fullText, file.name);
+
+    // Step 4: Derive material type from spec
+    if (extractedData.specifications) {
+      extractedData.materialType = deriveMaterialType(extractedData.specifications);
+    }
 
     return NextResponse.json({
       success: true,
-      textractRaw: {
-        fullText: textractResult.fullText,
-        blockCount: textractResult.blockCount,
-      },
+      extractionMethod,
+      textLength: fullText.length,
       extractedData,
     });
   } catch (err) {
@@ -42,19 +58,77 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── AWS Textract via SDK ───
+// ─── Derive material type from specification ───
 
-async function callTextract(bytes: Uint8Array): Promise<{
-  fullText: string;
-  tables: string[][][];
-  blockCount: number;
-}> {
+function deriveMaterialType(specs: string[]): string {
+  const specStr = specs.join(' ').toUpperCase();
+  
+  if (specStr.includes('A588') || specStr.includes('A709') || specStr.includes('709')) {
+    return 'Weathering Steel';
+  }
+  if (specStr.includes('A500')) return 'A500';
+  if (specStr.includes('A36') || specStr.includes('SA36')) return 'A36';
+  if (specStr.includes('A992')) return 'A992';
+  if (specStr.includes('L304') || specStr.includes('304') || specStr.includes('S304') || specStr.includes('STAINLESS')) {
+    return 'Stainless Steel';
+  }
+  if (specStr.includes('A53')) return 'A53';
+  if (specStr.includes('A513')) return 'A513';
+  return '';
+}
+
+// ─── Fast PDF text extraction (no AWS needed) ───
+
+async function extractPdfText(bytes: Uint8Array): Promise<string> {
+  const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const pageCount = pdfDoc.getPageCount();
+
+  const decoder = new TextDecoder('latin1');
+  const raw = decoder.decode(bytes);
+
+  const textChunks: string[] = [];
+  const btEtRegex = /BT\s+([\s\S]*?)\s+ET/g;
+  let match;
+
+  while ((match = btEtRegex.exec(raw)) !== null) {
+    const textObj = match[1];
+    const tjRegex = /\(([^)]*)\)\s*Tj/g;
+    const tjMatch = tjRegex.exec(textObj);
+    if (tjMatch) {
+      textChunks.push(tjMatch[1]);
+    }
+
+    const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
+    const tjArrayMatch = tjArrayRegex.exec(textObj);
+    if (tjArrayMatch) {
+      const parts = tjArrayMatch[1].split(/\)\s*\(/);
+      for (const part of parts) {
+        const cleaned = part.replace(/^\(/, '').replace(/\)$/, '');
+        if (cleaned) textChunks.push(cleaned);
+      }
+    }
+  }
+
+  let text = textChunks.join('\n');
+
+  if (text.trim().length < 50) {
+    const pdfParse = require('pdf-parse');
+    const data = await pdfParse(bytes);
+    text = data.text || '';
+  }
+
+  return text;
+}
+
+// ─── AWS Textract OCR fallback (scanned PDFs only) ───
+
+async function callTextract(bytes: Uint8Array): Promise<string> {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.replace(/['"]/g, '').trim();
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY?.replace(/['"]/g, '').trim();
   const region = process.env.AWS_REGION || 'us-east-1';
 
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in Vercel env vars.');
+    throw new Error('AWS credentials not configured. This scanned PDF requires Textract OCR but AWS credentials are missing.');
   }
 
   const client = new TextractClient({
@@ -62,103 +136,76 @@ async function callTextract(bytes: Uint8Array): Promise<{
     credentials: { accessKeyId, secretAccessKey },
   });
 
-  const command = new AnalyzeDocumentCommand({
-    Document: { Bytes: bytes },
-    FeatureTypes: ['TABLES', 'FORMS', 'LAYOUT'],
-  });
+  const pageBytes = await splitPdfPages(bytes);
+  const allText: string[] = [];
 
-  const result: any = await client.send(command);
+  for (let i = 0; i < Math.min(pageBytes.length, 3); i++) {
+    const command = new DetectDocumentTextCommand({
+      Document: { Bytes: pageBytes[i] },
+    });
 
-  if (!result.Blocks) {
-    throw new Error('Textract returned no blocks');
-  }
+    const result: any = await client.send(command);
+    const blocks: any[] = result.Blocks || [];
 
-  // Extract lines and tables
-  const blocks: any[] = result.Blocks || [];
-  const lines: string[] = [];
-  const tables: string[][][] = [];
-  const blockMap: Map<string, any> = new Map();
-  for (const b of blocks) {
-    blockMap.set(b.Id, b);
-  }
-
-  for (const block of blocks) {
-    if (block.BlockType === 'LINE' && block.Text) {
-      lines.push(block.Text);
+    for (const block of blocks) {
+      if (block.BlockType === 'LINE' && block.Text) {
+        allText.push(block.Text);
+      }
     }
   }
 
-  for (const block of blocks) {
-    if (block.BlockType === 'TABLE') {
-      const tableData = extractTable(block, blockMap);
-      if (tableData.length > 0) tables.push(tableData);
-    }
+  const text = allText.join('\n');
+  if (!text || text.trim().length < 50) {
+    throw new Error('Could not extract text from this PDF. It may be corrupted or password-protected.');
   }
-
-  return {
-    fullText: lines.join('\n'),
-    tables,
-    blockCount: blocks.length,
-  };
+  return text;
 }
 
-function extractTable(tableBlock: any, blockMap: Map<string, any>): string[][] {
-  const rows: string[][] = [];
-  const rel = tableBlock.Relationships?.find((r: any) => r.Type === 'CHILD');
-  if (!rel) return rows;
+// ─── Split PDF into individual pages ───
 
-  for (const cellId of rel.Ids) {
-    const cell = blockMap.get(cellId);
-    if (cell && cell.BlockType === 'CELL') {
-      const r = (cell.RowIndex || 1) - 1;
-      const c = (cell.ColumnIndex || 1) - 1;
-      const text = getCellText(cell, blockMap);
-      if (!rows[r]) rows[r] = [];
-      rows[r][c] = text;
-    }
-  }
-  return rows.filter((r) => r && r.length > 0);
-}
+async function splitPdfPages(bytes: Uint8Array): Promise<Uint8Array[]> {
+  const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const pageCount = pdfDoc.getPageCount();
 
-function getCellText(cell: any, blockMap: Map<string, any>): string {
-  const rel = cell.Relationships?.find((r: any) => r.Type === 'CHILD');
-  if (!rel) return '';
-  const words: string[] = [];
-  for (const wordId of rel.Ids) {
-    const word = blockMap.get(wordId);
-    if (word?.Text) words.push(word.Text);
+  if (pageCount <= 1) {
+    return [bytes];
   }
-  return words.join(' ');
+
+  const pages: Uint8Array[] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const singlePageDoc = await PDFDocument.create();
+    const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [i]);
+    singlePageDoc.addPage(copiedPage);
+    const pdfBytes = await singlePageDoc.save();
+    pages.push(new Uint8Array(pdfBytes));
+  }
+  return pages;
 }
 
 // ─── GPT-4o structured extraction ───
 
-async function callGPT4o(
-  textractData: { fullText: string; tables: string[][][] },
-  fileName: string
-): Promise<any> {
+async function callGPT4o(fullText: string, fileName: string): Promise<any> {
   const apiKey = process.env.OPENAI_API_KEY?.replace(/['"]/g, '').trim();
   if (!apiKey) throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in Vercel env vars.');
 
-  const tableText = (textractData.tables || [])
-    .map((table, i) => `Table ${i + 1}:\n${table.map((row) => row.join(' | ')).join('\n')}`)
-    .join('\n\n');
-
-  const combinedText = `${textractData.fullText}\n\n${tableText}`;
-
-  const systemPrompt = `You are an expert metallurgical QA/QC inspector specializing in structural steel Mill Test Reports (MTRs) for bridge construction. Extract ALL data from the MTR text provided below (sourced from AWS Textract OCR).
+  const systemPrompt = `You are an expert metallurgical QA/QC inspector specializing in structural steel Mill Test Reports (MTRs) for bridge construction. Extract ALL data from the MTR text provided below.
 
 CRITICAL FIELDS (in priority order):
 1. Heat Numbers — THE most important field. There may be 3-5+ heats on a single page. Extract ALL of them.
-2. Specification — e.g. ASTM A588, A709, A500, A36, A992. Do NOT guess. If unclear, leave blank.
+   - Heat numbers are typically 5-8 digit numbers associated with chemistry data (C, Mn, P, S, etc.)
+   - They are NOT work order numbers, PO numbers, or order numbers.
+   - Heat numbers usually appear near or above the chemistry table rows.
+   - If a number is labeled "WO", "Work Order", "Order", "Lot" — that is NOT a heat number.
+   - Only extract numbers that are clearly labeled as "Heat", "Heat No", "Heat Number", or appear as the identifier in a chemistry table row.
+2. Specification — e.g. ASTM A588, A709, A500, A36, A992, A53. Do NOT guess. If unclear, leave blank.
 3. Size/Type — e.g. W24x76, C8x18.75, HSS10x10x375, L4x4x1/2. Treat the full designation as one field.
 4. Grade — e.g. Grade 50W, Grade B, Grade 36. If combined with spec (e.g. "A588 Grade B"), separate them.
 5. Chemistry (per heat) — C, Mn, P, S, Si, Cu, Ni, Cr, V, Mo, Nb, CE if present
 6. Country of Origin — USA, Canada, etc. Look for "Buy America", "Build America", "Produced in USA", "Country of Origin"
-7. Mechanical Properties — Yield, Tensile, Elongation, CVN (Charpy V-Notch) if present
-8. Purchase Order (PO) Number
-9. Quantity
-10. Material Type — beam, channel, angle, plate, HSS, pipe, etc. Do NOT default to beam. Leave blank if unknown.
+7. Mechanical Properties — Yield, Tensile, Elongation if present
+8. CVN (Charpy V-Notch) — Extract ALL Charpy V-Notch impact test data if present. This is VERY important. Include temperature, energy values (ft-lbs or Joules), and any acceptance criteria.
+9. Killed Fine Grain Practice — Look for "fully killed", "killed steel", "fine grain practice", "fine-grain", "ASTM A6". Report true/false based on whether the MTR states this.
+10. No Weld Repair — Look for "no weld repair", "no repair welding", "no welding repair". Report true/false based on whether the MTR states this.
 
 Return a JSON object with this structure:
 {
@@ -166,24 +213,31 @@ Return a JSON object with this structure:
   "specifications": ["A709"],
   "grade": "50W",
   "sizes": ["W24x76"],
-  "materialType": "beam",
+  "materialType": "",
   "countryOfOrigin": "USA",
-  "poNumber": "1867667",
-  "quantity": "",
   "chemistryByHeat": {
     "627779": {"C": 0.09, "Mn": 1.25, "P": 0.017, "S": 0.015, "Si": 0.27, "Cu": 0.28, "Ni": 0.31, "Cr": 0.46, "V": 0.04, "Mo": 0.04, "Nb": 0.002, "CE": 0.44}
   },
   "mechanicalProperties": {
-    "627779": {"yield": "", "tensile": "", "elongation": "", "cvn": ""}
+    "627779": {"yield": "", "tensile": "", "elongation": ""}
   },
+  "cvnByHeat": {
+    "627779": {"temperature": "-40F", "energy_ft_lbs": "12, 15, 14", "acceptance": "15J avg"}
+  },
+  "killedFineGrainPractice": true,
+  "noWeldRepair": true,
   "notes": "",
   "extractionConfidence": "high|medium|low"
 }
 
 RULES:
 - Do NOT guess or fabricate data. If a field is not present, leave it empty/null.
-- If Textract misread a value (e.g. "AS88" should be "A588"), correct it.
+- If OCR misread a value (e.g. "AS88" should be "A588"), correct it.
 - Extract ALL heat numbers — do not cap at 2.
+- Do NOT confuse heat numbers with work order (WO) numbers, lot numbers, or order numbers.
+- killedFineGrainPractice: true if the MTR states "fully killed", "killed steel", or "fine grain practice". false if not stated.
+- noWeldRepair: true if the MTR states "no weld repair" or similar. false if not stated.
+- CVN is critical — if present, extract all data including temperature, energy values, and acceptance criteria.
 - If the document is not an MTR, return {"extractionConfidence": "not_an_mtr"}.
 - Return ONLY valid JSON, no markdown.`;
 
@@ -197,12 +251,17 @@ RULES:
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `File: ${fileName}\n\nTEXTRACT OCR OUTPUT:\n${combinedText}` },
+        { role: 'user', content: `File: ${fileName}\n\nMTR TEXT:\n${fullText}` },
       ],
       max_tokens: 4000,
       temperature: 0.1,
     }),
   });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenAI API error (${response.status}): ${errText.substring(0, 200)}`);
+  }
 
   const result: any = await response.json();
   const content = result.choices?.[0]?.message?.content || '{}';
